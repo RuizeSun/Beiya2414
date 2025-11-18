@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>班级管理面板</title>
+		<!-- 载入 Tailwind CSS -->
+		<script src="https://cdn.tailwindcss.com"></script>
+		<!-- 载入 Inter 字体 -->
+		<style>
+			body {
+				background-color: #f7f9fc; /* 浅灰色背景 */
+			}
+			/* 确保 iframe 在内容区块中能完全填满 */
+			.tab-content iframe {
+				width: 100%;
+				border: none;
+				height: 80vh;
+			}
+		</style>
+		<script>
+			tailwind.config = {
+				theme: {
+					extend: {
+						colors: {
+							primary: "#4f46e5", // Indigo-600
+							"primary-dark": "#4338ca", // Indigo-700
+							secondary: "#10b981", // Emerald-500
+						},
+					},
+				},
+			};
+
+			// JavaScript 函数：切换分页内容
+			function showTab(tabId) {
+				// 隐藏所有内容区块
+				document.querySelectorAll(".tab-content").forEach((content) => {
+					content.classList.add("hidden");
+					content.classList.remove("block");
+				});
+
+				// 移除所有按钮的 active 样式 (针对侧边栏设计)
+				document.querySelectorAll(".tab-button").forEach((button) => {
+					button.classList.remove("bg-primary-dark/10", "text-primary-dark", "font-semibold", "border-l-4", "border-primary-dark");
+					button.classList.add("text-gray-600", "hover:text-primary-dark", "hover:bg-gray-100");
+				});
+
+				// 显示选定的内容区块
+				const selectedContent = document.getElementById(tabId);
+				if (selectedContent) {
+					selectedContent.classList.remove("hidden");
+					selectedContent.classList.add("block");
+				}
+
+				// 为选定的按钮添加 active 样式
+				const selectedButton = document.querySelector(`.tab-button[data-tab='${tabId}']`);
+				if (selectedButton) {
+					selectedButton.classList.add("bg-primary-dark/10", "text-primary-dark", "font-semibold", "border-l-4", "border-primary-dark");
+					selectedButton.classList.remove("text-gray-600", "hover:text-primary-dark", "hover:bg-gray-100");
+				}
+			}
+
+			// 页面载入完成后，预设显示第一个分页
+			document.addEventListener("DOMContentLoaded", () => {
+				showTab("dashboard");
+			});
+		</script>
+	</head>
+	<body class="min-h-screen">
+		<!-- 主面板容器 -->
+		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+			<!-- 标题区块 -->
+			<header class="mb-6 border-b pb-4">
+				<h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">班级平台 管理员面板</h1>
+				<p class="mt-1 text-sm text-gray-500">在此管理班级平台的所有核心数据和功能。</p>
+			</header>
+
+			<!-- 侧边栏与内容区块的 Flex 布局 -->
+			<!-- 在中等萤幕以上 (md) 启用 Flex 布局 -->
+			<div class="md:flex md:space-x-6">
+				<!-- 侧边栏导航列 (Sidebar) -->
+				<nav class="md:w-64 flex-shrink-0 bg-white rounded-xl shadow-lg p-3 mb-6 md:mb-0">
+					<div class="space-y-2">
+						<!-- 每个按钮都会呼叫 showTab('tab-id') -->
+						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="location.href='/teacher/index.html'">返回主页</button>
+						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('dashboard')" data-tab="dashboard">仪表盘</button>
+						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('students')" data-tab="students">学生管理</button>
+						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('groups')" data-tab="groups">小组管理</button>
+						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('teachers')" data-tab="teachers">教师管理</button>
+						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('scorechangelog')" data-tab="scorechangelog">量化评分变动记录</button>
+						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('scorechangetype')" data-tab="scorechangetype">量化评分变动类别</button>
+					</div>
+				</nav>
+
+				<!-- 分页内容区块 (Main Content) -->
+				<div class="flex-1">
+					<div class="bg-white p-0 sm:p-0 rounded-xl shadow-lg border-t border-gray-200 min-h-[75vh]">
+						<!-- 1. 仪表板内容 (保持模拟内容) -->
+						<div id="dashboard" class="tab-content hidden">
+							<h2 class="text-2xl font-bold text-primary mb-4">仪表盘</h2>
+							<div class="p-6 bg-indigo-50 border border-indigo-200 rounded-xl">
+								<p class="text-lg font-medium text-indigo-800">欢迎来到管理员仪表盘！</p>
+								<p class="mt-2 text-indigo-700">此处应显示班级的关键数据摘要，例如活跃学生数、最近的评分活动和系统健康状态。</p>
+							</div>
+						</div>
+
+						<!-- 2. 学生管理内容 (替换回 iframe) -->
+						<div id="students" class="tab-content hidden">
+							<iframe src="/teacher/admin-dashboard/students.html" id="students-iframe"></iframe>
+						</div>
+
+						<!-- 3. 小组管理内容 (替换回 iframe) -->
+						<div id="groups" class="tab-content hidden">
+							<iframe src="/teacher/admin-dashboard/groups.html" id="groups-iframe"></iframe>
+						</div>
+
+						<!-- 4. 教师管理内容 (替换回 iframe) -->
+						<div id="teachers" class="tab-content hidden">
+							<iframe src="/teacher/admin-dashboard/teachers.html" id="teachers-iframe"></iframe>
+						</div>
+
+						<!-- 5. 量化评分变动记录内容 (替换回 iframe) -->
+						<div id="scorechangelog" class="tab-content hidden">
+							<iframe src="/teacher/admin-dashboard/scorechangelog.html" id="scorechangelog-iframe"></iframe>
+						</div>
+						<!-- 5. 量化评分变动记录内容 (替换回 iframe) -->
+						<div id="scorechangetype" class="tab-content hidden">
+							<iframe src="/teacher/admin-dashboard/scorechangetype.html" id="scorechangetype-iframe"></iframe>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<script src="https://cdn.jsdelivr.net/npm/js-cookie@2/src/js.cookie.min.js"></script>
+		<script>
+			if (Cookies.get("token") == undefined) {
+				window.location.href = "/teacher/login.html";
+			}
+		</script>
+	</body>
+</html>

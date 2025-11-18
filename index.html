@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>系统登录</title>
+		<!-- 引入 Tailwind CSS CDN 以实现快速美化和响应式设计 -->
+		<script src="https://cdn.tailwindcss.com"></script>
+		<style>
+			/* 设置 Inter 字体作为首选 */
+			body {
+				min-height: 100vh; /* 确保主体至少占满视口高度 */
+			}
+		</style>
+	</head>
+	<body class="bg-gradient-to-br from-indigo-50 to-blue-100 flex items-center justify-center p-4">
+		<!-- 登录卡片容器 -->
+		<div class="w-full max-w-lg p-8 space-y-6 bg-white rounded-2xl shadow-2xl transform hover:shadow-3xl transition duration-500">
+			<!-- 标题 -->
+			<h1 class="text-4xl font-extrabold text-center text-gray-800">欢迎使用班级管理系统</h1>
+			<p class="text-center text-lg text-gray-500 mb-8">请选择您的登录身份</p>
+
+			<!-- 登录链接按钮容器 -->
+			<div class="space-y-4">
+				<!-- 教师登录按钮 -->
+				<a href="/teacher/login.html" class="flex items-center justify-center w-full px-6 py-4 text-xl font-bold text-white bg-indigo-600 rounded-xl shadow-lg shadow-indigo-500/50 hover:bg-indigo-700 transition duration-300 ease-in-out transform hover:scale-[1.01]">
+					<!-- 教师图标 (Lucide-react inspired SVG, inline for single-file mandate) -->
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 mr-3">
+						<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+						<circle cx="9" cy="7" r="4" />
+						<path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+						<path d="M16 3.13a4 4 0 0 1 0 7.75" />
+					</svg>
+					教师登录
+				</a>
+
+				<!-- 班级大屏登录按钮 -->
+				<a href="/screen/login.html" class="flex items-center justify-center w-full px-6 py-4 text-xl font-bold text-white bg-blue-500 rounded-xl shadow-lg shadow-blue-400/50 hover:bg-blue-600 transition duration-300 ease-in-out transform hover:scale-[1.01]">
+					<!-- 屏幕图标 -->
+					<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 mr-3">
+						<rect width="18" height="12" x="3" y="6" rx="2" />
+						<path d="M12 18v3" />
+						<path d="M3 18h18" />
+					</svg>
+					班级大屏登录
+				</a>
+			</div>
+
+			<!-- 状态/提示信息 -->
+			<div class="pt-4 text-center">
+				<p class="inline-block p-3 text-lg font-medium text-gray-600 bg-gray-100 border border-dashed border-gray-300 rounded-lg shadow-inner">学生登录暂未开放</p>
+			</div>
+		</div>
+	</body>
+</html>

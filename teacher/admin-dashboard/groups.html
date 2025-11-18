@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<!-- 载入 Tailwind CSS -->
+		<script src="https://cdn.tailwindcss.com"></script>
+		<style>
+			/* 确保模态框在最上层 */
+			.modal-overlay {
+				z-index: 1000;
+			}
+			/* 美化表格行的 hover 效果 */
+			.group-row-hover {
+				transition: all 0.2s ease-in-out;
+			}
+			.group-row-hover:hover {
+				background-color: #f7f7f7;
+				box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+				transform: translateY(-1px);
+			}
+		</style>
+	</head>
+	<body>
+		<div id="app">
+			<!-- 讯息/错误显示区域 -->
+			<div id="message-box" class="mb-4 hidden p-3 rounded-xl text-sm font-medium transition-opacity duration-300 shadow-lg" role="alert"></div>
+
+			<!-- 操作按钮 -->
+			<div class="mb-6 flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+				<button onclick="openAddModal()" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-xl shadow-md hover:shadow-lg transition duration-150 ease-in-out transform hover:scale-[1.02]">新增小组</button>
+				<button onclick="fetchGroups()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-xl shadow-md hover:shadow-lg transition duration-150 ease-in-out transform hover:scale-[1.02]">刷新列表</button>
+			</div>
+
+			<!-- 小组列表表格 -->
+			<div class="bg-white rounded-xl overflow-hidden ring-1 ring-gray-200">
+				<div class="overflow-x-auto">
+					<table class="min-w-full divide-y divide-gray-200">
+						<thead class="bg-gray-100">
+							<tr>
+								<th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">ID</th>
+								<th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">小组名称</th>
+								<th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">组长</th>
+								<th class="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">成员数</th>
+								<th class="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">总评分</th>
+								<th class="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">平均分</th>
+								<th class="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">操作</th>
+							</tr>
+						</thead>
+						<tbody id="groups-table-body" class="bg-white divide-y divide-gray-100">
+							<!-- 小组资料将由 JavaScript 填充 -->
+							<tr>
+								<td colspan="7" class="text-center py-8 text-gray-400 text-lg">载入中...</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</div>
+
+		<!-- 新增小组的 Modal -->
+		<div id="add-group-modal" class="modal-overlay fixed inset-0 bg-gray-900 bg-opacity-70 hidden flex items-center justify-center p-4 transition-opacity duration-300" onclick="closeModal(event, `add-group-modal`)">
+			<div class="bg-white rounded-2xl shadow-3xl w-full max-w-sm transform transition-all duration-300 scale-95" onclick="event.stopPropagation()">
+				<div class="p-6">
+					<h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">新增小组</h2>
+					<form id="add-group-form" onsubmit="handleAddGroup(event)">
+						<div class="mb-6">
+							<label for="groupName" class="block text-sm font-medium text-gray-700">小组名称</label>
+							<input type="text" id="groupName" name="groupName" required class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-purple-500 focus:border-purple-500 transition duration-150" />
+						</div>
+
+						<div class="flex justify-end space-x-3">
+							<button type="button" onclick="closeModal(null, `add-group-modal`)" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-xl transition duration-150 shadow-sm">取消</button>
+							<button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-xl shadow-lg transition duration-150 transform hover:scale-[1.02]">新增</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+
+		<!-- 设置组长的 Modal -->
+		<div id="leader-modal" class="modal-overlay fixed inset-0 bg-gray-900 bg-opacity-70 hidden flex items-center justify-center p-4 transition-opacity duration-300" onclick="closeModal(event, `leader-modal`)">
+			<div class="bg-white rounded-2xl shadow-3xl w-full max-w-sm transform transition-all duration-300 scale-95" onclick="event.stopPropagation()">
+				<div class="p-6">
+					<h2 id="leader-modal-title" class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">设置组长</h2>
+					<form id="leader-form" onsubmit="handleSetLeader(event)">
+						<input type="hidden" id="leader-group-id" name="groupId" />
+
+						<div class="mb-6">
+							<label for="groupLeader" class="block text-sm font-medium text-gray-700">选择组长 (仅显示该组成员)</label>
+							<select id="groupLeader" name="groupLeader" required class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-red-500 focus:border-red-500 transition duration-150">
+								<!-- 选项将由 JavaScript 填充 -->
+							</select>
+						</div>
+
+						<div class="flex justify-end space-x-3">
+							<button type="button" onclick="closeModal(null, `leader-modal`)" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-xl transition duration-150 shadow-sm">取消</button>
+							<button type="submit" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-xl shadow-lg transition duration-150 transform hover:scale-[1.02]">设置</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+
+		<!-- 自订删除确认 Modal -->
+		<div id="confirm-modal" class="modal-overlay fixed inset-0 bg-gray-900 bg-opacity-70 hidden flex items-center justify-center p-4 transition-opacity duration-300" onclick="closeModal(event, `confirm-modal`)">
+			<div class="bg-white rounded-2xl shadow-3xl w-full max-w-sm transform transition-all duration-300 scale-95" onclick="event.stopPropagation()">
+				<div class="p-6">
+					<h2 class="text-2xl font-bold text-red-600 mb-4 border-b pb-3">解散小组确认</h2>
+					<p id="confirm-message" class="text-gray-700 mb-6"></p>
+					<div class="flex justify-end space-x-3">
+						<button type="button" onclick="closeModal(null, `confirm-modal`)" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-xl transition duration-150 shadow-sm">取消</button>
+						<button type="button" id="confirm-delete-btn" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-xl shadow-lg transition duration-150 transform hover:scale-[1.02]">确认解散</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			// 设定 API 端点为您的 PHP 后端文件
+			const API_ENDPOINT = "/system/admin-dashboard-groups.php";
+
+			document.addEventListener("DOMContentLoaded", () => {
+				fetchGroups();
+			});
+
+			const groupsTableBody = document.getElementById("groups-table-body");
+			const messageBox = document.getElementById("message-box");
+			const leaderSelect = document.getElementById("groupLeader");
+			const confirmMessage = document.getElementById("confirm-message");
+			const confirmDeleteBtn = document.getElementById("confirm-delete-btn");
+
+			// 显示通知讯息
+			function showMessage(type, message) {
+				messageBox.textContent = message;
+				messageBox.className = "mb-4 p-3 rounded-xl text-sm font-medium transition-opacity duration-300 shadow-lg";
+				messageBox.classList.remove("hidden", "bg-red-600", "bg-green-600", "text-white");
+
+				if (type === "success") {
+					messageBox.classList.add("bg-green-600", "text-white");
+				} else {
+					messageBox.classList.add("bg-red-600", "text-white");
+				}
+
+				setTimeout(() => {
+					messageBox.classList.add("hidden");
+				}, 3000);
+			}
+
+			// 处理 AJAX 请求
+			async function apiFetch(action, options = {}) {
+				const url = `${API_ENDPOINT}?action=${action}`;
+				try {
+					const response = await fetch(url, options);
+
+					if (response.status === 401) {
+						throw new Error("认证失败：您可能没有足够的权限。");
+					}
+
+					const contentType = response.headers.get("content-type");
+
+					if (contentType && contentType.indexOf("application/json") !== -1) {
+						const data = await response.json();
+						if (!data.success) {
+							// 处理来自 PHP 的业务逻辑错误
+							throw new Error(data.message || `操作失败 (${response.status})`);
+						}
+						return data;
+					} else {
+						const text = await response.text();
+						// 处理非 JSON 响应 (例如 PHP 错误或 Auth 失败)
+						throw new Error(`服务器返回非 JSON 格式: ${response.status}. ${text.substring(0, 50)}...`);
+					}
+				} catch (error) {
+					showMessage("error", `请求失败: ${error.message}`);
+					return null;
+				}
+			}
+
+			// 获取小组详情并渲染表格
+			async function fetchGroups() {
+				groupsTableBody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-gray-400 text-lg">载入中...</td></tr>`;
+				const data = await apiFetch("get_groups_details");
+
+				if (data && data.groups) {
+					renderGroups(data.groups);
+				} else if (data === null) {
+					groupsTableBody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-red-500 text-lg">载入小组资料失败。</td></tr>`;
+				}
+			}
+
+			// 渲染小组列表
+			function renderGroups(groups) {
+				if (groups.length === 0) {
+					groupsTableBody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-gray-500 text-lg">目前没有小组资料。</td></tr>`;
+					return;
+				}
+
+				groupsTableBody.innerHTML = groups
+					.map(
+						(group) => `
+			             <tr class="group-row-hover transition duration-200 border-t border-gray-100" data-id="${group.Id}">
+			                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${group.Id}</td>
+			                 <td class="px-6 py-4 whitespace-nowrap text-base font-semibold text-purple-700">${group.groupName}</td>
+			                 <td class="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">${group.leaderName}</td>
+			                 <td class="px-6 py-4 whitespace-nowrap text-sm text-center">${group.studentCount}</td>
+			                 <td class="px-6 py-4 whitespace-nowrap text-sm text-center font-bold">${group.totalScore}</td>
+			                 <td class="px-6 py-4 whitespace-nowrap text-sm text-center font-bold text-blue-600">${group.averageScore}</td>
+			                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center space-x-3">
+			                     <button onclick="openLeaderModal(${group.Id}, '${group.groupName}', ${group.groupLeader || "null"})"
+			                             class="text-blue-600 hover:text-blue-800 font-semibold hover:underline transition duration-150">
+			                         设置组长
+			                     </button>
+			                     <button onclick="openConfirmModal(${group.Id}, '${group.groupName}')"
+			                             class="text-red-600 hover:text-red-800 font-semibold hover:underline transition duration-150">
+			                         解散小组
+			                     </button>
+			                 </td>
+			             </tr>
+			         `
+					)
+					.join("");
+			}
+
+			// --- Modal 通用逻辑 ---
+			function closeModal(event, modalId) {
+				const modal = document.getElementById(modalId);
+				if (event && event.target !== modal) return;
+				modal.classList.add("hidden");
+			}
+
+			// --- 新增小组 Modal 逻辑 ---
+			function openAddModal() {
+				document.getElementById("add-group-modal").classList.remove("hidden");
+				document.getElementById("add-group-form").reset();
+			}
+
+			async function handleAddGroup(event) {
+				event.preventDefault();
+				const groupName = document.getElementById("groupName").value.trim();
+
+				const formData = new FormData();
+				formData.append("groupName", groupName);
+
+				const data = await apiFetch("add_group", {
+					method: "POST",
+					body: formData,
+				});
+
+				if (data && data.success) {
+					showMessage("success", data.message);
+					closeModal(null, "add-group-modal");
+					fetchGroups();
+				}
+			}
+
+			// --- 设置组长 Modal 逻辑 ---
+			async function openLeaderModal(groupId, groupName, currentgroupLeader) {
+				document.getElementById("leader-group-id").value = groupId;
+				document.getElementById("leader-modal-title").textContent = `设置 ${groupName} 的组长`;
+				leaderSelect.innerHTML = `<option value="null">载入成员中...</option>`;
+				document.getElementById("leader-modal").classList.remove("hidden");
+
+				const data = await apiFetch(`get_students_by_group&groupId=${groupId}`);
+
+				if (data && data.students) {
+					let optionsHtml = `<option value="null">-- 清除组长 --</option>`;
+
+					data.students.forEach((student) => {
+						const selected = student.Id == currentgroupLeader ? "selected" : "";
+						optionsHtml += `<option value="${student.Id}" ${selected}>${student.fullName} (ID: ${student.Id})</option>`;
+					});
+
+					leaderSelect.innerHTML = optionsHtml;
+					// 确保选中正确的值
+					leaderSelect.value = currentgroupLeader === null ? "null" : currentgroupLeader.toString();
+				} else {
+					leaderSelect.innerHTML = `<option value="null">载入成员失败或小组无成员</option>`;
+				}
+			}
+
+			async function handleSetLeader(event) {
+				event.preventDefault();
+				const groupId = document.getElementById("leader-group-id").value;
+				const groupLeader = leaderSelect.value;
+
+				const formData = new FormData();
+				formData.append("groupId", groupId);
+				formData.append("groupLeader", groupLeader);
+
+				const data = await apiFetch("set_leader", {
+					method: "POST",
+					body: formData,
+				});
+
+				if (data && data.success) {
+					showMessage("success", data.message);
+					closeModal(null, "leader-modal");
+					fetchGroups();
+				}
+			}
+
+			// --- 解散小组 Modal 逻辑 ---
+			let currentGroupIdToDelete = null;
+
+			function openConfirmModal(groupId, groupName) {
+				currentGroupIdToDelete = groupId;
+				confirmMessage.innerHTML = `您确定要 **解散小组“${groupName}”** 吗？<br><br><span class="text-sm font-medium text-red-500">注意：这将解除所有组员的分组关系，并将他们的量化评分重置为 0。此操作不可逆转。</span>`;
+
+				// 重新绑定确认按钮的事件，确保每次点击都执行最新的删除逻辑
+				confirmDeleteBtn.onclick = handleGroupDelete;
+				document.getElementById("confirm-modal").classList.remove("hidden");
+			}
+
+			async function handleGroupDelete() {
+				if (!currentGroupIdToDelete) return;
+
+				const formData = new FormData();
+				formData.append("Id", currentGroupIdToDelete);
+
+				const data = await apiFetch("delete_group", {
+					method: "POST",
+					body: formData,
+				});
+
+				if (data && data.success) {
+					showMessage("success", data.message);
+					closeModal(null, "confirm-modal");
+					currentGroupIdToDelete = null; // 清除 ID
+					fetchGroups();
+				}
+			}
+		</script>
+	</body>
+</html>

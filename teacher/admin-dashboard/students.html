@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<!-- 载入 Tailwind CSS -->
+		<script src="https://cdn.tailwindcss.com"></script>
+		<style>
+			/* 隐藏密码输入的眼睛图标 (标准化密码输入框) */
+			input[type="password"]::-ms-reveal,
+			input[type="password"]::-ms-clear {
+				display: none;
+			}
+			/* 确保弹窗在最上层 */
+			.modal-overlay {
+				z-index: 1000;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="app">
+			<!-- 信息/错误显示区域 -->
+			<div id="message-box" class="mb-4 hidden p-3 rounded-lg text-sm font-medium transition-opacity duration-300 shadow-lg" role="alert"></div>
+
+			<!-- 操作按钮 -->
+			<div class="mb-6 flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+				<button onclick="openAddModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-xl shadow-md hover:shadow-lg transition duration-150 ease-in-out transform hover:scale-[1.02]">新增学生</button>
+				<button onclick="fetchStudents()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-xl shadow-md hover:shadow-lg transition duration-150 ease-in-out transform hover:scale-[1.02]">刷新列表</button>
+			</div>
+
+			<!-- 学生列表表格 -->
+			<div class="bg-white shadow-2xl rounded-xl overflow-hidden ring-1 ring-gray-200">
+				<div class="overflow-x-auto">
+					<table class="min-w-full divide-y divide-gray-200">
+						<thead class="bg-gray-100">
+							<tr>
+								<th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">ID</th>
+								<!-- 确保显示“姓+名” -->
+								<th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">全名 (姓+名)</th>
+								<th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">量化评分</th>
+								<th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">所属小组</th>
+								<th class="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">操作</th>
+							</tr>
+						</thead>
+						<tbody id="students-table-body" class="bg-white divide-y divide-gray-100">
+							<!-- 学生数据将由 JavaScript 填充 -->
+							<tr>
+								<td colspan="5" class="text-center py-8 text-gray-400 text-lg">加载中...</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+		</div>
+
+		<!-- 新增/编辑学生的弹窗 -->
+		<div id="student-modal" class="modal-overlay fixed inset-0 bg-gray-900 bg-opacity-70 hidden flex items-center justify-center p-4 transition-opacity duration-300" onclick="closeModal(event)">
+			<div class="bg-white rounded-2xl shadow-3xl w-full max-w-md transform transition-all duration-300 scale-95" onclick="event.stopPropagation()">
+				<div class="p-6">
+					<h2 id="modal-title" class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">新增学生</h2>
+					<form id="student-form" onsubmit="handleFormSubmit(event)">
+						<input type="hidden" id="student-id" name="Id" />
+						<input type="hidden" id="modal-mode" value="add" />
+
+						<div class="space-y-4">
+							<div class="grid grid-cols-2 gap-4">
+								<div>
+									<label for="lastname" class="block text-sm font-medium text-gray-700">姓</label>
+									<input type="text" id="lastname" name="lastname" required class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-blue-500 focus:border-blue-500 transition duration-150" />
+								</div>
+								<div>
+									<label for="firstname" class="block text-sm font-medium text-gray-700">名</label>
+									<input type="text" id="firstname" name="firstname" required class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-blue-500 focus:border-blue-500 transition duration-150" />
+								</div>
+							</div>
+
+							<div id="score-field" class="hidden">
+								<label for="score" class="block text-sm font-medium text-gray-700">量化评分</label>
+								<input type="number" id="score" name="score" min="0" max="100" class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-blue-500 focus:border-blue-500 transition duration-150" />
+							</div>
+
+							<div class="mb-6">
+								<label for="password" class="block text-sm font-medium text-gray-700">密码 <span id="password-hint" class="text-xs text-gray-500">(新增必填)</span></label>
+								<input type="password" id="password" name="password" class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-blue-500 focus:border-blue-500 transition duration-150" />
+							</div>
+						</div>
+
+						<div class="flex justify-end space-x-3 mt-6">
+							<button type="button" onclick="closeModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-xl transition duration-150 shadow-sm">取消</button>
+							<button type="submit" id="modal-submit-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-xl shadow-lg transition duration-150 transform hover:scale-[1.02]">新增</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+
+		<!-- 小组分配的弹窗 -->
+		<div id="group-modal" class="modal-overlay fixed inset-0 bg-gray-900 bg-opacity-70 hidden flex items-center justify-center p-4 transition-opacity duration-300" onclick="closeGroupModal(event)">
+			<div class="bg-white rounded-2xl shadow-3xl w-full max-w-sm transform transition-all duration-300 scale-95" onclick="event.stopPropagation()">
+				<div class="p-6">
+					<h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">分配小组</h2>
+					<form id="group-form" onsubmit="handleGroupAssign(event)">
+						<input type="hidden" id="assign-student-id" name="Id" />
+
+						<div class="mb-6">
+							<label for="groupId" class="block text-sm font-medium text-gray-700">选择小组</label>
+							<select id="groupId" name="groupId" required class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-purple-500 focus:border-purple-500 transition duration-150">
+								<!-- 选项将由 JavaScript 填充 -->
+							</select>
+						</div>
+
+						<div class="flex justify-end space-x-3">
+							<button type="button" onclick="closeGroupModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-xl transition duration-150 shadow-sm">取消</button>
+							<button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-xl shadow-lg transition duration-150 transform hover:scale-[1.02]">分配</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			// API 的基础 URL，指向后端 PHP 文件
+			const API_URL = "/system/admin-dashboard-students.php";
+
+			const studentsTableBody = document.getElementById("students-table-body");
+			const messageBox = document.getElementById("message-box");
+			const studentModal = document.getElementById("student-modal");
+			const groupModal = document.getElementById("group-modal");
+			const studentForm = document.getElementById("student-form");
+			const groupSelect = document.getElementById("groupId");
+
+			document.addEventListener("DOMContentLoaded", () => {
+				fetchGroups();
+				fetchStudents();
+			});
+
+			// 显示通知信息
+			function showMessage(type, message) {
+				messageBox.textContent = message;
+				messageBox.className = "mb-4 p-3 rounded-lg text-sm font-medium transition-opacity duration-300 shadow-lg";
+				messageBox.classList.remove("hidden", "bg-red-600", "bg-green-600", "text-white");
+
+				if (type === "success") {
+					messageBox.classList.add("bg-green-600", "text-white");
+				} else {
+					messageBox.classList.add("bg-red-600", "text-white");
+				}
+
+				// 2.5 秒后自动隐藏
+				setTimeout(() => {
+					messageBox.classList.add("hidden");
+				}, 2500);
+			}
+
+			// 处理 AJAX 请求
+			async function apiFetch(action, options = {}) {
+				const url = `${API_URL}?action=${action}`;
+				try {
+					const response = await fetch(url, options);
+
+					// 检查是否为 JSON 响应
+					const contentType = response.headers.get("content-type");
+
+					// 如果是 401 Unauthorized 状态码
+					if (response.status === 401) {
+						const data = contentType && contentType.indexOf("application/json") !== -1 ? await response.json() : { message: "未授权访问" };
+						showMessage("error", data.message || "登录已过期，请重新登录。");
+						return null;
+					}
+
+					if (contentType && contentType.indexOf("application/json") !== -1) {
+						const data = await response.json();
+						if (!data.success) {
+							// 抛出后端返回的错误信息
+							throw new Error(data.message || `操作失败 (${response.status})`);
+						}
+						return data;
+					} else {
+						// 如果不是 JSON，可能是 PHP 错误
+						const text = await response.text();
+						// 为了安全，只显示通用错误
+						throw new Error(`服务器返回异常: ${response.status}.`);
+					}
+				} catch (error) {
+					// 显示捕获到的错误
+					showMessage("error", `请求失败: ${error.message}`);
+					return null;
+				}
+			}
+
+			// 获取小组数据并填充分配弹窗
+			async function fetchGroups() {
+				// 在这里调用 apiFetch 并传递 action
+				const data = await apiFetch("get_groups");
+				if (data && data.groups) {
+					groupSelect.innerHTML = "";
+					data.groups.forEach((group) => {
+						const option = document.createElement("option");
+						// 将 '未分组' 的 Id (null) 设置为 'null' 字符串以便 PHP 识别
+						option.value = group.Id === null ? "null" : group.Id;
+						option.textContent = group.groupName;
+						groupSelect.appendChild(option);
+					});
+				}
+			}
+
+			// 获取学生数据并渲染表格
+			async function fetchStudents() {
+				studentsTableBody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-400 text-lg">加载中...</td></tr>';
+
+				// 在这里调用 apiFetch 并传递 action
+				const data = await apiFetch("get_students");
+
+				if (data && data.students) {
+					renderStudents(data.students);
+				} else if (data === null) {
+					// 错误信息已在 apiFetch 中显示
+					studentsTableBody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-red-500 text-lg">加载学生数据失败。</td></tr>';
+				}
+			}
+
+			// 渲染学生列表
+			function renderStudents(students) {
+				if (students.length === 0) {
+					studentsTableBody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-500 text-lg">目前没有学生数据。</td></tr>';
+					return;
+				}
+
+				studentsTableBody.innerHTML = students
+					.map(
+						(student) => `
+                <tr data-id="${student.Id}" class="hover:bg-gray-50 transition duration-150 border-t border-gray-100">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${student.Id}</td>
+                    <!-- 使用后端已经合并好的 fullName (姓+名) -->
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${student.fullName}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-semibold">${student.score || 0}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-purple-600">${student.groupName || "未分组"}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-center space-x-3">
+                        <button onclick="openEditModal(${student.Id}, '${student.firstname}', '${student.lastname}', ${student.score})" 
+                                class="text-indigo-600 hover:text-indigo-800 font-semibold hover:underline transition duration-150">
+                            编辑
+                        </button>
+                        <button onclick="openGroupAssignModal(${student.Id}, ${student.groupId || "null"})" 
+                                class="text-purple-600 hover:text-purple-800 font-semibold hover:underline transition duration-150">
+                            分组
+                        </button>
+                        <button onclick="deleteStudent(${student.Id})" 
+                                class="text-red-600 hover:text-red-800 font-semibold hover:underline transition duration-150">
+                            删除
+                        </button>
+                    </td>
+                </tr>
+            `
+					)
+					.join("");
+			}
+
+			// 开启新增学生弹窗
+			function openAddModal() {
+				document.getElementById("modal-title").textContent = "新增学生";
+				document.getElementById("modal-mode").value = "add";
+				document.getElementById("student-id").value = "";
+
+				studentForm.reset();
+				document.getElementById("password").required = true;
+				document.getElementById("score-field").classList.add("hidden");
+
+				document.getElementById("password-hint").textContent = "(必填)";
+				document.getElementById("modal-submit-btn").textContent = "新增";
+
+				studentModal.classList.remove("hidden");
+			}
+
+			// 开启编辑学生弹窗
+			function openEditModal(id, firstname, lastname, score) {
+				document.getElementById("modal-title").textContent = `编辑学生 (ID: ${id})`;
+				document.getElementById("modal-mode").value = "edit";
+				document.getElementById("student-id").value = id;
+				document.getElementById("firstname").value = firstname;
+				document.getElementById("lastname").value = lastname;
+				document.getElementById("score").value = score;
+
+				document.getElementById("password").value = "";
+				document.getElementById("password").required = false;
+				document.getElementById("score-field").classList.remove("hidden");
+
+				document.getElementById("password-hint").textContent = "(留空则不修改密码)";
+				document.getElementById("modal-submit-btn").textContent = "保存";
+
+				studentModal.classList.remove("hidden");
+			}
+
+			// 关闭学生弹窗 (点击背景或取消按钮)
+			function closeModal(event = null) {
+				if (event && event.target !== studentModal) return;
+				studentModal.classList.add("hidden");
+			}
+
+			// 开启小组分配弹窗
+			function openGroupAssignModal(id, currentGroupId) {
+				document.getElementById("assign-student-id").value = id;
+				// 设定当前选中的小组
+				groupSelect.value = currentGroupId === "null" ? "null" : currentGroupId;
+				groupModal.classList.remove("hidden");
+			}
+
+			// 关闭小组分配弹窗
+			function closeGroupModal(event = null) {
+				if (event && event.target !== groupModal) return;
+				groupModal.classList.add("hidden");
+			}
+
+			// 处理新增/编辑表单提交
+			async function handleFormSubmit(event) {
+				event.preventDefault();
+				const mode = document.getElementById("modal-mode").value;
+				const action = mode === "add" ? "add_student" : "update_student";
+
+				const formData = new FormData(studentForm);
+
+				// 调用 api.php
+				const data = await apiFetch(action, {
+					method: "POST",
+					body: formData,
+				});
+
+				if (data && data.success) {
+					showMessage("success", data.message);
+					closeModal();
+					fetchStudents(); // 重新加载列表
+				}
+			}
+
+			// 处理小组分配表单提交
+			async function handleGroupAssign(event) {
+				event.preventDefault();
+
+				const formData = new FormData(document.getElementById("group-form"));
+
+				// 调用 api.php
+				const data = await apiFetch("assign_group", {
+					method: "POST",
+					body: formData,
+				});
+
+				if (data && data.success) {
+					showMessage("success", data.message);
+					closeGroupModal();
+					fetchStudents(); // 重新加载列表
+				}
+			}
+
+			// 处理删除学生 (使用自定义提示代替 alert/confirm)
+			function deleteStudent(id) {
+				const studentRow = document.querySelector(`#students-table-body tr[data-id="${id}"]`);
+				const studentName = studentRow ? studentRow.querySelector("td:nth-child(2)").textContent : `ID ${id}`;
+
+				// 由於不能使用 window.confirm()，我們將使用 window.prompt 模拟 confirm
+				const promptResult = window.prompt(`确认删除学生 ${studentName} (ID: ${id}) 吗？\n请输入“删除”以确认此操作。`);
+
+				if (promptResult !== "删除") {
+					showMessage("error", "删除操作已取消。");
+					return;
+				}
+
+				// 执行删除
+				(async () => {
+					const formData = new FormData();
+					formData.append("Id", id);
+
+					// 调用 api.php
+					const data = await apiFetch("delete_student", {
+						method: "POST",
+						body: formData,
+					});
+
+					if (data && data.success) {
+						showMessage("success", data.message);
+						fetchStudents(); // 重新加载列表
+					}
+				})();
+			}
+		</script>
+	</body>
+</html>

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>教师主页</title>
+		<!-- 使用 Tailwind CSS CDN 进行美观和响应式设计 -->
+		<script src="https://cdn.tailwindcss.com"></script>
+	</head>
+	<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+		<div id="loading" class="text-xl text-blue-500">正在载入教师资讯...</div>
+
+		<div id="teacherDashboard" class="hidden w-full max-w-lg bg-white rounded-xl shadow-2xl p-6 md:p-8 transform transition duration-500 hover:shadow-3xl">
+			<h1 class="text-3xl font-extrabold text-gray-800 border-b-2 pb-3 mb-6">欢迎，<span id="welcomeName" class="text-blue-600"></span> 老师</h1>
+
+			<!-- 教师资讯卡片 -->
+			<div class="space-y-4 mb-8">
+				<div class="flex items-center p-4 bg-blue-50 rounded-lg shadow-sm">
+					<svg class="w-6 h-6 text-blue-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+					<div class="text-gray-700">
+						<span class="font-semibold">任教科目:</span>
+						<span id="infoSubject"></span>
+					</div>
+				</div>
+
+				<div class="flex items-center p-4 bg-blue-50 rounded-lg shadow-sm">
+					<svg class="w-6 h-6 text-blue-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.071 12.071 0 003 12c0 3.063 1.745 5.854 4.318 7.218C10.237 21.43 11.237 22 12 22s1.763-.57 4.682-2.782A12.071 12.071 0 0021 12c0-2.427-.61-4.743-1.682-6.756z"></path></svg>
+					<div class="text-gray-700">
+						<span class="font-semibold">管理员身份:</span>
+						<span id="infoAdmin" class="font-bold"></span>
+					</div>
+				</div>
+			</div>
+
+			<!-- 导航选项 -->
+			<div class="flex flex-col space-y-4">
+				<!-- 进入教师面板 (所有教师可见) -->
+				<a href="/teacher/teacher-dashboard/index.html" class="block bg-green-500 hover:bg-green-600 text-white text-center py-3 rounded-lg font-semibold shadow-md transition duration-200"> 进入 <span class="font-bold">教师面板</span> </a>
+
+				<!-- 进入管理员面板 (仅管理员可见) -->
+				<a id="adminLink" href="/teacher/admin-dashboard/index.html" class="hidden block bg-red-500 hover:bg-red-600 text-white text-center py-3 rounded-lg font-semibold shadow-md transition duration-200"> 进入 <span class="font-bold">管理员面板</span> </a>
+
+				<!-- 登出选项 -->
+				<button id="logoutButton" class="bg-gray-300 hover:bg-gray-400 text-gray-800 text-center py-3 rounded-lg font-semibold shadow-md transition duration-200 mt-4">登出</button>
+			</div>
+		</div>
+
+		<div id="errorBox" class="hidden w-full max-w-lg bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg" role="alert">
+			<p class="font-bold" id="errorTitle">错误</p>
+			<p class="text-sm" id="errorMessage"></p>
+			<button onclick="window.location.href = '/teacher/login.html'" class="mt-3 bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded transition duration-200">返回登录</button>
+		</div>
+
+		<script>
+			document.addEventListener("DOMContentLoaded", initializeDashboard);
+
+			async function initializeDashboard() {
+				const loading = document.getElementById("loading");
+				const dashboard = document.getElementById("teacherDashboard");
+				const errorBox = document.getElementById("errorBox");
+
+				loading.classList.remove("hidden");
+				dashboard.classList.add("hidden");
+				errorBox.classList.add("hidden");
+
+				try {
+					// 1. 获取用户资讯
+					const response = await fetch("/system/teacher-profile.php", { method: "GET" });
+					const result = await response.json();
+
+					if (response.ok && result.status === "success") {
+						const data = result.data;
+
+						// 2. 显示用户资讯
+						document.getElementById("welcomeName").textContent = data.fullName;
+						document.getElementById("infoSubject").textContent = data.subject || "未指定";
+
+						const adminText = data.isAdmin ? "是 (✓)" : "否 (✗)";
+						const adminClass = data.isAdmin ? "text-red-600" : "text-gray-500";
+
+						const infoAdminElement = document.getElementById("infoAdmin");
+						infoAdminElement.textContent = adminText;
+						infoAdminElement.classList.add(adminClass);
+
+						// 3. 根据权限显示管理员连结
+						if (data.isAdmin) {
+							document.getElementById("adminLink").classList.remove("hidden");
+						}
+
+						// 4. 显示主页面
+						loading.classList.add("hidden");
+						dashboard.classList.remove("hidden");
+
+						// 5. 绑定登出事件
+						document.getElementById("logoutButton").addEventListener("click", handleLogout);
+					} else {
+						// 认证失败或数据获取错误
+						displayError(result.message || "无法获取用户资讯。", result.redirect);
+					}
+				} catch (error) {
+					console.error("初始化失败:", error);
+					displayError("网络请求失败，请检查服务器连接。", "/teacher/login.html");
+				} finally {
+					loading.classList.add("hidden");
+				}
+			}
+
+			// 处理登出逻辑
+			async function handleLogout() {
+				const logoutButton = document.getElementById("logoutButton");
+				logoutButton.disabled = true;
+				logoutButton.textContent = "正在登出...";
+				document.cookie = "token=a;expires=Thu, 1 Jan 2000 12:00:00 GMT";
+				try {
+					const response = await fetch("/system/teacher-logout.php", { method: "POST" });
+					const result = await response.json();
+
+					// 无论服务器返回什么，清除 cookie 的操作已在后端执行，直接跳转即可
+					if (result.redirect) {
+						window.location.href = result.redirect;
+					} else {
+						// 预设跳转到登录页
+						document.cookie = "token=a;expires=Thu, 1 Jan 2000 12:00:00 GMT";
+						window.location.href = "/teacher/login.html";
+					}
+				} catch (error) {
+					// 即使网络请求失败，也应尝试跳转，因为 cookie 可能已清除
+					document.cookie = "token=a;expires=Thu, 1 Jan 2000 12:00:00 GMT";
+					console.error("登出请求失败:", error);
+					window.location.href = "/teacher/login.html";
+				}
+			}
+
+			// 显示错误讯息并提供跳转
+			function displayError(message, redirectUrl = "/teacher/login.html") {
+				const dashboard = document.getElementById("teacherDashboard");
+				const errorBox = document.getElementById("errorBox");
+
+				dashboard.classList.add("hidden");
+				errorBox.classList.remove("hidden");
+
+				document.getElementById("errorMessage").textContent = message;
+
+				// 确保跳转按钮正确设置
+				const backButton = errorBox.querySelector("button");
+				backButton.onclick = () => (window.location.href = redirectUrl);
+			}
+		</script>
+	</body>
+</html>

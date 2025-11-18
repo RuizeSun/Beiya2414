@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>班级大屏登入</title>
+		<!-- 引入 Tailwind CSS -->
+		<script src="https://cdn.tailwindcss.com"></script>
+		<style>
+			@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap");
+			body {
+				font-family: "Inter", sans-serif;
+				background-color: #f3f4f6;
+			}
+		</style>
+	</head>
+	<body class="min-h-screen flex items-center justify-center p-4">
+		<div class="w-full max-w-md bg-white p-8 rounded-xl shadow-2xl transition-all duration-300">
+			<h2 class="text-3xl font-bold text-gray-800 text-center mb-6">班级大屏登入</h2>
+			<p class="text-center text-sm text-gray-500 mb-8">请输入大屏 ID 和密码以激活显示。</p>
+
+			<form id="screenLoginForm" class="space-y-6">
+				<div>
+					<label for="screenId" class="block text-sm font-medium text-gray-700 mb-2">大屏 ID (Screen ID)</label>
+					<!-- 由于 Id 是整数，使用 type="number" 进行优化 -->
+					<input type="number" id="screenId" name="screenId" required min="1" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" placeholder="请输入大屏 ID" />
+				</div>
+
+				<div>
+					<label for="password" class="block text-sm font-medium text-gray-700 mb-2">密码 (Password)</label>
+					<input type="password" id="password" name="password" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" placeholder="请输入密码" />
+				</div>
+
+				<div id="messageBox" class="p-3 rounded-lg text-center font-medium hidden" role="alert"></div>
+
+				<button type="submit" id="loginButton" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-lg font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-300 transform active:scale-95">启动大屏</button>
+			</form>
+		</div>
+
+		<script>
+			document.getElementById("screenLoginForm").addEventListener("submit", async function (event) {
+				event.preventDefault();
+
+				const button = document.getElementById("loginButton");
+				const messageBox = document.getElementById("messageBox");
+				const screenId = document.getElementById("screenId").value;
+				const password = document.getElementById("password").value;
+				const apiEndpoint = "/system/screen-login.php"; // 后端 API 路径
+
+				// 禁用按钮并显示载入状态
+				button.disabled = true;
+				button.textContent = "验证中...";
+				button.classList.add("opacity-70");
+				messageBox.classList.add("hidden");
+
+				try {
+					const response = await fetch(apiEndpoint, {
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+						},
+						body: JSON.stringify({ screenId, password }),
+					});
+
+					const data = await response.json();
+
+					if (response.ok) {
+						messageBox.textContent = data.message + ` ID: ${data.screenId}`;
+						messageBox.className = "p-3 rounded-lg text-center font-medium bg-green-100 text-green-800";
+						// 登入成功后重定向到大屏主页，例如：
+						setTimeout(() => {
+							window.location.href = "/screen/index.html  ";
+						}, 1500);
+					} else {
+						// 登入失败
+						messageBox.textContent = data.message || "登入失败，请检查网络或凭证。";
+						messageBox.className = "p-3 rounded-lg text-center font-medium bg-red-100 text-red-800";
+					}
+				} catch (error) {
+					console.error("Fetch error:", error);
+					messageBox.textContent = "连线服务器失败，请检查 API 路径是否正确或服务器状态。";
+					messageBox.className = "p-3 rounded-lg text-center font-medium bg-red-100 text-red-800";
+				} finally {
+					// 重新启用按钮
+					button.disabled = false;
+					button.textContent = "启动大屏";
+					button.classList.remove("opacity-70");
+					messageBox.classList.remove("hidden");
+				}
+			});
+		</script>
+	</body>
+</html>

@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<!-- 引入 Tailwind CSS -->
+		<script src="https://cdn.tailwindcss.com"></script>
+		<style>
+			/* 确保 Inter 字体被使用 */
+			body {
+				background-color: #f7f9fb;
+			}
+			/* 隐藏弹窗 (Modal) 预设状态 */
+			.modal-overlay {
+				background-color: rgba(0, 0, 0, 0.6);
+				backdrop-filter: blur(4px);
+				z-index: 100;
+			}
+			.modal-content {
+				animation: fadeIn 0.3s ease-out;
+			}
+			@keyframes fadeIn {
+				from {
+					opacity: 0;
+					transform: scale(0.95);
+				}
+				to {
+					opacity: 1;
+					transform: scale(1);
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<div id="auth-error-container" class="hidden">
+			<!-- 这里会显示来自 api.php 的 HTML 授权错误讯息 -->
+		</div>
+
+		<!-- 讯息/错误提示区 -->
+		<div id="message-box" class="hidden p-3 mb-4 rounded-lg text-sm transition duration-300"></div>
+
+		<!-- 操作按钮 -->
+		<div class="flex mb-6">
+			<button onclick="openModal('add')" class="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-150 transform hover:scale-105">+ 新增教师</button>
+		</div>
+
+		<!-- 教师列表表格 -->
+		<div class="overflow-x-auto shadow-inner rounded-lg border border-gray-100">
+			<table class="min-w-full divide-y divide-gray-200">
+				<thead class="bg-indigo-50">
+					<tr>
+						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">姓名 (姓+名)</th>
+						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">任教科目</th>
+						<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">管理员</th>
+						<th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+					</tr>
+				</thead>
+				<tbody id="teachers-table-body" class="bg-white divide-y divide-gray-100">
+					<tr>
+						<td colspan="5" class="p-4 text-center text-gray-500">载入中...</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+
+		<!-- 新增/编辑 教师 Modal 弹窗 -->
+		<div id="teacher-modal" class="fixed inset-0 hidden items-center justify-center modal-overlay">
+			<div class="bg-white rounded-xl shadow-3xl w-full max-w-lg p-6 modal-content">
+				<div class="flex justify-between items-center border-b pb-3 mb-4">
+					<h2 id="modal-title" class="text-2xl font-bold text-gray-800">新增教师</h2>
+					<button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">&times;</button>
+				</div>
+
+				<form id="teacher-form">
+					<input type="hidden" id="teacher-id" />
+
+					<!-- 姓名字段 -->
+					<div class="grid grid-cols-2 gap-4 mb-4">
+						<div>
+							<label for="lastname" class="block text-sm font-medium text-gray-700 mb-1">姓</label>
+							<input type="text" id="lastname" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+						</div>
+						<div>
+							<label for="firstname" class="block text-sm font-medium text-gray-700 mb-1">名</label>
+							<input type="text" id="firstname" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+						</div>
+					</div>
+
+					<!-- 科目字段 -->
+					<div class="mb-4">
+						<label for="subject" class="block text-sm font-medium text-gray-700 mb-1">任教科目</label>
+						<input type="text" id="subject" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+					</div>
+
+					<!-- 密码字段 (新增必填，修改选填) -->
+					<div class="mb-4">
+						<label for="password" class="block text-sm font-medium text-gray-700 mb-1">密码</label>
+						<input type="password" id="password" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="新增时必填，修改时留空表示不修改" />
+					</div>
+
+					<!-- 是否为管理员字段 -->
+					<div class="mb-6 flex items-center">
+						<input type="checkbox" id="isAdmin" class="h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" />
+						<label for="isAdmin" class="ml-3 text-sm font-medium text-gray-700">是否为管理员</label>
+					</div>
+
+					<!-- 提交按钮 -->
+					<div class="flex justify-end">
+						<button type="button" onclick="closeModal()" class="mr-3 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition duration-150">取消</button>
+						<button type="submit" id="save-button" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 transition duration-150">储存</button>
+					</div>
+				</form>
+			</div>
+		</div>
+
+		<script>
+			const API_URL = "/system/admin-dashboard-teachers.php";
+			const tableBody = document.getElementById("teachers-table-body");
+			const modal = document.getElementById("teacher-modal");
+			const modalTitle = document.getElementById("modal-title");
+			const form = document.getElementById("teacher-form");
+			const messageBox = document.getElementById("message-box");
+
+			let currentMode = "add"; // 'add' or 'edit'
+
+			/**
+			 * 显示提示讯息
+			 * @param {string} message 讯息内容
+			 * @param {string} type 'success' or 'error'
+			 */
+			function showMessage(message, type = "success") {
+				messageBox.textContent = message;
+				messageBox.classList.remove("hidden", "bg-red-100", "text-red-700", "bg-green-100", "text-green-700");
+
+				if (type === "error") {
+					messageBox.classList.add("bg-red-100", "text-red-700", "border", "border-red-400");
+				} else {
+					messageBox.classList.add("bg-green-100", "text-green-700", "border", "border-green-400");
+				}
+
+				setTimeout(() => {
+					messageBox.classList.add("hidden");
+				}, 5000);
+			}
+
+			/**
+			 * 执行 API 请求
+			 * @param {string} action API 动作 ('list', 'add', 'update', 'delete')
+			 * @param {string} method HTTP 方法 ('GET', 'POST', 'PUT', 'DELETE')
+			 * @param {Object} data 传递的资料
+			 */
+			async function apiRequest(action, method = "GET", data = null) {
+				const url = `${API_URL}?action=${action}`;
+				const options = {
+					method: method,
+					headers: {},
+				};
+
+				if (data && (method === "POST" || method === "PUT" || method === "DELETE" || method === "PATCH")) {
+					options.headers["Content-Type"] = "application/json";
+					options.body = JSON.stringify(data);
+				}
+
+				// 处理授权错误 (API 会回传 HTML 错误)
+				try {
+					const response = await fetch(url, options);
+
+					// 检查 Content-Type: 如果是 HTML，表示发生了 401 授权错误
+					const contentType = response.headers.get("content-type");
+					if (contentType && contentType.indexOf("text/html") !== -1) {
+						const htmlError = await response.text();
+						document.getElementById("admin-panel").classList.add("hidden");
+						const authErrorContainer = document.getElementById("auth-error-container");
+						authErrorContainer.innerHTML = htmlError;
+						authErrorContainer.classList.remove("hidden");
+						return { status: "error", message: "未授权访问" };
+					}
+
+					const result = await response.json();
+
+					if (result.status === "error") {
+						throw new Error(result.message);
+					}
+
+					return result;
+				} catch (error) {
+					console.error("API 请求错误:", error.message);
+					showMessage(error.message, "error");
+					return { status: "error", message: error.message };
+				}
+			}
+
+			/**
+			 * 载入并显示教师列表
+			 */
+			async function fetchTeachers() {
+				tableBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500 animate-pulse">载入教师资料...</td></tr>';
+
+				const result = await apiRequest("list", "GET");
+
+				if (result.status === "success") {
+					renderTeachers(result.data);
+				} else if (result.status === "error" && result.message !== "未授权访问") {
+					tableBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-600">载入失败: ${result.message}</td></tr>`;
+				}
+			}
+
+			/**
+			 * 渲染表格内容
+			 * @param {Array} teachers 教师资料阵列
+			 */
+			function renderTeachers(teachers) {
+				if (teachers.length === 0) {
+					tableBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">目前没有教师资料</td></tr>';
+					return;
+				}
+
+				tableBody.innerHTML = teachers
+					.map(
+						(teacher) => `
+                <tr class="hover:bg-gray-50 transition duration-100">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${teacher.Id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${teacher.fullName}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${teacher.subject}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${teacher.isAdmin == 1 ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}">
+                            ${teacher.isAdmin == 1 ? "是" : "否"}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex justify-center space-x-2">
+                        <button onclick="openModal('edit', ${JSON.stringify(teacher).replace(/"/g, "&quot;")})" 
+                                class="text-indigo-600 hover:text-indigo-900 p-1 rounded-full hover:bg-indigo-50 transition duration-150">
+                            编辑
+                        </button>
+                        <button onclick="deleteTeacher(${teacher.Id}, '${teacher.fullName}')" 
+                                class="text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-50 transition duration-150">
+                            删除
+                        </button>
+                    </td>
+                </tr>
+            `
+					)
+					.join("");
+			}
+
+			/**
+			 * 打开新增/编辑弹窗
+			 * @param {string} mode 'add' or 'edit'
+			 * @param {Object} teacherData 编辑模式下的教师资料
+			 */
+			function openModal(mode, teacherData = {}) {
+				currentMode = mode;
+				form.reset();
+				document.getElementById("password").required = mode === "add";
+
+				if (mode === "add") {
+					modalTitle.textContent = "新增教师";
+					document.getElementById("teacher-id").value = "";
+					document.getElementById("save-button").textContent = "新增";
+				} else {
+					modalTitle.textContent = "编辑教师";
+					document.getElementById("teacher-id").value = teacherData.Id;
+					document.getElementById("lastname").value = teacherData.lastname;
+					document.getElementById("firstname").value = teacherData.firstname;
+					document.getElementById("subject").value = teacherData.subject;
+					document.getElementById("isAdmin").checked = teacherData.isAdmin == 1;
+					document.getElementById("save-button").textContent = "更新";
+				}
+
+				modal.classList.remove("hidden");
+				modal.classList.add("flex");
+			}
+
+			/**
+			 * 关闭弹窗
+			 */
+			function closeModal() {
+				modal.classList.add("hidden");
+				modal.classList.remove("flex");
+			}
+
+			/**
+			 * 处理表单提交
+			 * @param {Event} e 提交事件
+			 */
+			form.addEventListener("submit", async function (e) {
+				e.preventDefault();
+
+				const teacherId = document.getElementById("teacher-id").value;
+				const passwordField = document.getElementById("password");
+
+				const data = {
+					lastname: document.getElementById("lastname").value,
+					firstname: document.getElementById("firstname").value,
+					subject: document.getElementById("subject").value,
+					isAdmin: document.getElementById("isAdmin").checked ? 1 : 0,
+				};
+
+				if (passwordField.value) {
+					data.password = passwordField.value;
+				}
+
+				let result;
+				if (currentMode === "add") {
+					// 新增模式：密码为必填，已在 HTML 中设置
+					result = await apiRequest("add", "POST", data);
+				} else {
+					// 编辑模式：ID 必填
+					data.Id = parseInt(teacherId);
+					result = await apiRequest("update", "PUT", data);
+				}
+
+				if (result.status === "success") {
+					showMessage(result.message);
+					closeModal();
+					fetchTeachers(); // 重新载入列表
+				}
+			});
+
+			/**
+			 * 处理删除教师
+			 * @param {number} Id 教师 ID
+			 * @param {string} fullName 教师姓名
+			 */
+			async function deleteTeacher(Id, fullName) {
+				// 使用自定义的确认框 (避免浏览器原生的 alert/confirm)
+				if (!window.confirm(`确定要删除教师 ${fullName} (ID: ${Id}) 吗？此操作不可逆！`)) {
+					return;
+				}
+
+				const result = await apiRequest("delete", "DELETE", { Id: Id });
+
+				if (result.status === "success") {
+					showMessage(result.message, "success");
+					fetchTeachers(); // 重新载入列表
+				} else {
+					showMessage(result.message, "error");
+				}
+			}
+
+			// 初始化：载入教师列表
+			document.addEventListener("DOMContentLoaded", fetchTeachers);
+		</script>
+	</body>
+</html>

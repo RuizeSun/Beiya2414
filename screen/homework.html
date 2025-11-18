@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>大屏作业管理</title>
+		<!-- 引入 Tailwind CSS -->
+		<script src="https://cdn.tailwindcss.com"></script>
+		<!-- 引入 Lucide Icons -->
+		<script src="https://unpkg.com/lucide@latest"></script>
+		<style>
+			/* 确保 Lucide 图标正确渲染 */
+			.lucide {
+				display: inline;
+				stroke-width: 2;
+			}
+			/* 自定义滚动条样式 */
+			.scrollbar-thin::-webkit-scrollbar {
+				width: 8px;
+			}
+			.scrollbar-thin::-webkit-scrollbar-track {
+				background: #f1f1f1;
+			}
+			.scrollbar-thin::-webkit-scrollbar-thumb {
+				background: #cbd5e1; /* slate-300 */
+				border-radius: 4px;
+			}
+			.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+				background: #94a3b8; /* slate-400 */
+			}
+			/* 模态框进入/退出动画 */
+			.modal-fade-enter-active,
+			.modal-fade-leave-active {
+				transition: opacity 0.3s ease;
+			}
+			.modal-fade-enter,
+			.modal-fade-leave-to {
+				opacity: 0;
+			}
+			/* 摄像头预览容器 */
+			.camera-container {
+				position: relative;
+				width: 100%;
+				height: 400px;
+				overflow: hidden;
+				border-radius: 0.5rem;
+				background-color: #000;
+			}
+			.camera-preview {
+				width: 100%;
+				height: 100%;
+				object-fit: cover;
+			}
+			.camera-controls {
+				position: absolute;
+				bottom: 0;
+				left: 0;
+				right: 0;
+				padding: 1rem;
+				background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				gap: 1rem;
+			}
+			.capture-button {
+				width: 60px;
+				height: 60px;
+				border-radius: 50%;
+				background-color: white;
+				border: 4px solid rgba(255, 255, 255, 0.5);
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				cursor: pointer;
+				transition: all 0.2s ease;
+			}
+			.capture-button:active {
+				transform: scale(0.95);
+			}
+			.capture-button-inner {
+				width: 50px;
+				height: 50px;
+				border-radius: 50%;
+				background-color: white;
+				border: 2px solid #e5e7eb;
+			}
+			.camera-option-button {
+				width: 44px;
+				height: 44px;
+				border-radius: 50%;
+				background-color: rgba(255, 255, 255, 0.2);
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				color: white;
+				cursor: pointer;
+				transition: all 0.2s ease;
+			}
+			.camera-option-button:hover {
+				background-color: rgba(255, 255, 255, 0.3);
+			}
+			.camera-option-button.active {
+				background-color: rgba(79, 70, 229, 0.8);
+			}
+			.captured-photo {
+				width: 100%;
+				max-height: 400px;
+				object-fit: contain;
+				border-radius: 0.5rem;
+				transition: transform 0.3s ease;
+			}
+			/* 旋转控制按钮容器 */
+			.rotation-controls {
+				display: flex;
+				justify-content: center;
+				gap: 0.5rem;
+				margin-top: 1rem;
+			}
+			.rotation-button {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				padding: 0.5rem 1rem;
+				background-color: #4f46e5;
+				color: white;
+				border-radius: 0.5rem;
+				font-weight: 500;
+				cursor: pointer;
+				transition: background-color 0.2s ease;
+			}
+			.rotation-button:hover {
+				background-color: #4338ca;
+			}
+			.rotation-button:disabled {
+				background-color: #9ca3af;
+				cursor: not-allowed;
+			}
+		</style>
+		<script>
+			tailwind.config = {
+				theme: {
+					extend: {
+						colors: {
+							primary: "#4f46e5",
+							"primary-dark": "#4338ca",
+						},
+					},
+				},
+			};
+		</script>
+	</head>
+	<body>
+		<div id="app">
+			<header class="mb-8 border-b pb-4 flex justify-between items-center">
+				<button id="backButton" onclick="showHomeworkList()" class="hidden bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-full transition duration-150 shadow-md">
+					<i data-lucide="arrow-left" class="w-5 h-5 inline mr-1"></i>
+					返回作业列表
+				</button>
+			</header>
+
+			<!-- 加载/消息提示 -->
+			<div id="loading" class="text-center p-8 text-xl text-primary-dark hidden">
+				<i data-lucide="loader-circle" class="w-8 h-8 inline animate-spin mr-2"></i>
+				加载中...
+			</div>
+			<div id="message" class="hidden p-4 mb-4 text-center rounded-lg font-medium"></div>
+
+			<!-- 1. 作业列表视图 -->
+			<div id="homeworkListContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+				<div id="homeworkPlaceholder" class="lg:col-span-3 text-center p-12 text-gray-500 bg-white rounded-xl shadow-lg">
+					<i data-lucide="clipboard-list" class="w-12 h-12 mx-auto mb-4"></i>
+					<p>当前没有正在进行的作业。</p>
+				</div>
+			</div>
+
+			<!-- 2. 学生列表视图 -->
+			<div id="studentListContainer" class="hidden">
+				<h2 id="currentHomeworkTitle" class="text-2xl font-bold mb-6 text-gray-800 border-b pb-2"></h2>
+				<div id="studentsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+					<!-- 学生卡片将在此处生成 -->
+				</div>
+			</div>
+		</div>
+
+		<!-- 提交作业模态框 -->
+		<div id="submissionModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50 transition-opacity duration-300">
+			<div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6">
+				<div class="flex justify-between items-center border-b pb-3 mb-4">
+					<h3 class="text-xl font-bold text-gray-900">为 <span id="modalStudentName" class="text-primary"></span> 提交/更新作业</h3>
+					<button onclick="closeModal('submissionModal')" class="text-gray-400 hover:text-gray-600 transition">
+						<i data-lucide="x" class="w-6 h-6"></i>
+					</button>
+				</div>
+
+				<div id="cameraTabContainer" class="mb-4">
+					<div class="flex border-b">
+						<button id="cameraTabButton" class="flex-1 py-2 px-4 text-center font-medium border-b-2 border-primary text-primary"><i data-lucide="camera" class="w-4 h-4 inline mr-1"></i> 拍照上传</button>
+						<button id="fileTabButton" class="flex-1 py-2 px-4 text-center font-medium text-gray-500 hover:text-gray-700"><i data-lucide="upload" class="w-4 h-4 inline mr-1"></i> 文件上传</button>
+					</div>
+				</div>
+
+				<!-- 摄像头拍摄区域 -->
+				<div id="cameraSection" class="space-y-4">
+					<div style="display: flex; justify-content: center">
+						<img src="/screen/scanner.jpg" style="width: 10vw; height: 10vw" />
+					</div>
+					<div class="camera-container" id="camera-container">
+						<video id="cameraPreview" class="camera-preview" autoplay playsinline></video>
+						<div class="camera-controls">
+							<button id="switchCameraButton" class="camera-option-button" title="切换摄像头">
+								<i data-lucide="refresh-cw" class="w-5 h-5"></i>
+							</button>
+							<button id="captureButton" class="capture-button">
+								<div class="capture-button-inner"></div>
+							</button>
+							<button id="flashButton" class="camera-option-button" title="闪光灯">
+								<i data-lucide="zap" class="w-5 h-5"></i>
+							</button>
+						</div>
+					</div>
+
+					<div id="capturedPhotoContainer" class="hidden">
+						<p class="text-sm font-medium mb-2">拍摄的照片:</p>
+						<img id="capturedPhoto" class="captured-photo" alt="拍摄的照片" />
+
+						<!-- 旋转控制按钮 -->
+						<div class="rotation-controls">
+							<button id="rotateLeftButton" class="rotation-button">
+								<i data-lucide="rotate-ccw" class="w-4 h-4 mr-1"></i>
+								左旋转
+							</button>
+							<button id="rotateRightButton" class="rotation-button">
+								<i data-lucide="rotate-cw" class="w-4 h-4 mr-1"></i>
+								右旋转
+							</button>
+							<button id="resetRotationButton" class="rotation-button">
+								<i data-lucide="refresh-cw" class="w-4 h-4 mr-1"></i>
+								重置
+							</button>
+						</div>
+
+						<div class="flex justify-between mt-4">
+							<button id="retakeButton" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-150"><i data-lucide="refresh-cw" class="w-4 h-4 inline mr-1"></i> 重新拍摄</button>
+							<button id="usePhotoButton" class="bg-primary hover:bg-primary-dark text-white font-semibold py-2 px-4 rounded-lg transition duration-150"><i data-lucide="check" class="w-4 h-4 inline mr-1"></i> 使用此照片</button>
+						</div>
+					</div>
+				</div>
+
+				<!-- 文件上传区域 -->
+				<div id="fileSection" class="hidden space-y-4">
+					<p class="text-sm text-gray-500 mb-4">请点击下方按钮选择图片文件。图片将在浏览器中进行<strong>首次压缩</strong>。</p>
+
+					<div class="flex items-center justify-center w-full">
+						<label for="fileInput" class="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+							<div class="flex flex-col items-center justify-center pt-5 pb-6">
+								<i data-lucide="upload" class="w-10 h-10 mb-3 text-gray-400"></i>
+								<p class="mb-2 text-sm text-gray-500"><span class="font-semibold">点击上传</span></p>
+								<p class="text-xs text-gray-500">支持 JPEG, PNG, HEIC 等图像格式</p>
+							</div>
+							<input id="fileInput" type="file" class="hidden" accept="image/*" />
+						</label>
+					</div>
+
+					<div id="previewContainer" class="hidden mt-4">
+						<p class="text-sm font-medium mb-2">图片预览:</p>
+						<img id="imagePreview" class="max-h-60 w-auto mx-auto rounded-lg shadow-md border" alt="预览" />
+					</div>
+				</div>
+
+				<form id="submissionForm" class="space-y-4">
+					<input type="hidden" id="modalHomeworkId" name="homework_id" />
+					<input type="hidden" id="modalStudentId" name="student_id" />
+
+					<button type="submit" id="submitBtn" class="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3 px-4 rounded-lg transition duration-150 shadow-md flex items-center justify-center disabled:bg-gray-400" disabled>
+						<i data-lucide="upload-cloud" class="w-5 h-5 mr-2"></i>
+						<span>上传并提交</span>
+					</button>
+				</form>
+			</div>
+		</div>
+
+		<!-- 查看作业模态框 -->
+		<div id="viewModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50 transition-opacity duration-300">
+			<div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl p-6">
+				<div class="flex justify-between items-center border-b pb-3 mb-4">
+					<h3 class="text-xl font-bold text-gray-900">查看 <span id="viewModalStudentName" class="text-primary"></span> 的作业</h3>
+					<button onclick="closeModal('viewModal')" class="text-gray-400 hover:text-gray-600 transition">
+						<i data-lucide="x" class="w-6 h-6"></i>
+					</button>
+				</div>
+				<div class="max-h-[80vh] overflow-y-auto flex justify-center items-center p-2">
+					<img id="submissionImageView" class="w-full h-auto rounded-lg shadow-xl" alt="提交的作业图片" />
+				</div>
+				<div id="viewModalLoading" class="text-center p-8 text-xl text-primary-dark hidden">
+					<i data-lucide="loader-circle" class="w-8 h-8 inline animate-spin mr-2"></i>
+					加载图片中...
+				</div>
+			</div>
+		</div>
+
+		<script>
+			// API 基础 URL (与前端文件在同一目录下，或指定完整路径)
+			const API_URL = "/system/screen-homework.php";
+
+			let currentHomeworkId = null;
+			let currentStream = null;
+			let imageCapture = null;
+			let currentFacingMode = "environment"; // 默认使用后置摄像头
+			let flashMode = "off";
+			let currentFile = null;
+			let currentRotation = 0; // 当前图片旋转角度
+			let originalPhotoBlob = null; // 原始照片Blob
+
+			// --- 通用函数 ---
+
+			/**
+			 * 显示消息提示
+			 * @param {string} message 消息内容
+			 * @param {string} type 消息类型: success, error, info
+			 */
+			function showMessage(message, type = "info") {
+				const msgEl = document.getElementById("message");
+				msgEl.textContent = message;
+				msgEl.className = "p-4 mb-4 text-center rounded-lg font-medium";
+				msgEl.classList.remove("hidden", "bg-red-100", "text-red-700", "bg-green-100", "text-green-700", "bg-blue-100", "text-blue-700");
+
+				if (type === "error") {
+					msgEl.classList.add("bg-red-100", "text-red-700");
+				} else if (type === "success") {
+					msgEl.classList.add("bg-green-100", "text-green-700");
+				} else {
+					msgEl.classList.add("bg-blue-100", "text-blue-700");
+				}
+
+				// 5秒后自动隐藏
+				setTimeout(() => msgEl.classList.add("hidden"), 5000);
+			}
+
+			/**
+			 * 显示或隐藏加载指示器
+			 * @param {boolean} show 是否显示
+			 */
+			function showLoading(show) {
+				document.getElementById("loading").classList.toggle("hidden", !show);
+			}
+
+			/**
+			 * 关闭模态框
+			 * @param {string} id 模态框的 ID
+			 */
+			function closeModal(id) {
+				document.getElementById(id).classList.add("hidden");
+				// 停止摄像头流
+				if (currentStream) {
+					currentStream.getTracks().forEach((track) => track.stop());
+					currentStream = null;
+				}
+				// 重置旋转状态
+				currentRotation = 0;
+			}
+
+			// --- 视图切换 (逻辑不变) ---
+
+			/**
+			 * 切换到作业列表视图
+			 */
+			function showHomeworkList() {
+				currentHomeworkId = null;
+				document.getElementById("homeworkListContainer").classList.remove("hidden");
+				document.getElementById("studentListContainer").classList.add("hidden");
+				document.getElementById("backButton").classList.add("hidden");
+				// 确保占位符在容器内并隐藏，等待 fetchActiveHomeworks 处理
+				const container = document.getElementById("homeworkListContainer");
+				const placeholder = document.getElementById("homeworkPlaceholder");
+				if (placeholder && placeholder.parentNode !== container) {
+					container.appendChild(placeholder);
+				}
+				placeholder.classList.add("hidden"); // 在请求前先隐藏
+				placeholder.querySelector("p").textContent = "当前没有正在进行的作业。"; // 恢复默认文本
+				fetchActiveHomeworks();
+			}
+
+			/**
+			 * 切换到学生列表视图
+			 * @param {number} homeworkId 作业 ID
+			 * @param {string} title 作业标题
+			 */
+			function showStudentList(homeworkId, title) {
+				currentHomeworkId = homeworkId;
+				document.getElementById("currentHomeworkTitle").textContent = `作业详情: ${title}`;
+				document.getElementById("homeworkListContainer").classList.add("hidden");
+				document.getElementById("studentListContainer").classList.remove("hidden");
+				document.getElementById("backButton").classList.remove("hidden");
+				fetchStudentsSubmissions(homeworkId);
+			}
+
+			// --- 数据获取 (逻辑不变) ---
+
+			/**
+			 * 获取正在进行的作业列表
+			 */
+			async function fetchActiveHomeworks() {
+				const container = document.getElementById("homeworkListContainer");
+				const placeholder = document.getElementById("homeworkPlaceholder");
+
+				// 1. 将占位符从父容器中移除（如果它还在的话），以便清空容器时它不受影响
+				if (placeholder.parentNode === container) {
+					container.removeChild(placeholder);
+				}
+
+				// 2. 清空容器内容（只清空作业卡片，不影响占位符）
+				container.innerHTML = "";
+
+				showLoading(true);
+
+				try {
+					const response = await fetch(`${API_URL}?action=get_active_homeworks`);
+					const result = await response.json();
+
+					if (result.status === "success") {
+						if (result.data.length === 0) {
+							// 3. 没有作业时，将占位符添加回去并显示
+							container.appendChild(placeholder);
+							placeholder.classList.remove("hidden"); // 确保占位符是可见的
+						} else {
+							// 4. 有作业时，确保占位符是隐藏的（虽然它不在容器内了，但以防万一）
+							placeholder.classList.add("hidden");
+							result.data.forEach((hw) => {
+								const card = createHomeworkCard(hw);
+								container.appendChild(card);
+							});
+						}
+						// 重新渲染 Lucide 图标
+						lucide.createIcons();
+					} else {
+						showMessage(`获取作业列表失败: ${result.message}`, "error");
+						// 如果获取失败，也应该显示占位符或错误信息
+						container.appendChild(placeholder);
+						placeholder.classList.remove("hidden");
+						placeholder.querySelector("p").textContent = `加载失败: ${result.message}`; // 可选：显示失败信息
+					}
+				} catch (e) {
+					showMessage(`网络错误: ${e.message}`, "error");
+					container.appendChild(placeholder);
+					placeholder.classList.remove("hidden");
+					placeholder.querySelector("p").textContent = `网络请求失败: ${e.message}`; // 可选：显示网络错误信息
+				} finally {
+					showLoading(false);
+				}
+			}
+
+			/**
+			 * 创建作业卡片 DOM 元素
+			 * @param {object} hw 作业数据
+			 * @returns {HTMLElement} 作业卡片元素
+			 */
+			function createHomeworkCard(hw) {
+				const card = document.createElement("div");
+				card.className = "bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300 cursor-pointer border-l-4 border-primary";
+				card.onclick = () => showStudentList(hw.Id, hw.title);
+				card.innerHTML = `
+            <h3 class="text-xl font-bold text-gray-900 truncate">${hw.title}</h3>
+            <p class="text-sm text-gray-500 mt-1 mb-3">${hw.description || "无描述"}</p>
+            <div class="flex justify-between items-end">
+                <span class="text-xs font-medium text-gray-700 bg-primary/10 px-2 py-1 rounded-full">ID: ${hw.Id}</span>
+                <div class="text-right">
+                    <p class="text-xs text-red-600 font-semibold flex items-center">
+                        <i data-lucide="clock" class="w-3 h-3 mr-1"></i>
+                        截止: ${hw.stoptime_formatted.split(" ")[0]}
+                    </p>
+                    <p class="text-xs text-red-600 font-semibold">${hw.stoptime_formatted.split(" ")[1]}</p>
+                </div>
+            </div>
+        `;
+				return card;
+			}
+
+			/**
+			 * 获取学生列表及提交情况
+			 * @param {number} homeworkId 作业 ID
+			 */
+			async function fetchStudentsSubmissions(homeworkId) {
+				const grid = document.getElementById("studentsGrid");
+				grid.innerHTML = "";
+				showLoading(true);
+
+				try {
+					const response = await fetch(`${API_URL}?action=get_students_submissions&homework_id=${homeworkId}`);
+					const result = await response.json();
+
+					if (result.status === "success") {
+						result.data.forEach((student) => {
+							const card = createStudentCard(student);
+							grid.appendChild(card);
+						});
+						lucide.createIcons();
+					} else {
+						showMessage(`获取学生列表失败: ${result.message}`, "error");
+					}
+				} catch (e) {
+					showMessage(`网络错误: ${e.message}`, "error");
+				} finally {
+					showLoading(false);
+				}
+			}
+
+			/**
+			 * 创建学生卡片 DOM 元素
+			 */
+			function createStudentCard(student) {
+				const submitted = student.submitted;
+				const card = document.createElement("div");
+
+				// 提交状态的样式
+				const statusClass = submitted ? "bg-green-100 text-green-700 border-green-400" : "bg-red-100 text-red-700 border-red-400";
+				const statusIcon = submitted ? "check-circle" : "x-circle";
+				const statusText = submitted ? "已提交" : "未提交";
+
+				card.className = `bg-white p-4 rounded-xl shadow-md border-t-4 ${submitted ? "border-green-500" : "border-red-500"} flex flex-col justify-between`;
+				card.innerHTML = `
+            <div>
+                <div class="flex items-center justify-between">
+                    <h4 class="text-lg font-bold text-gray-800">${student.fullName}</h4>
+                    <span class="text-sm font-medium ${statusClass} px-2 py-0.5 rounded-full flex items-center">
+                        <i data-lucide="${statusIcon}" class="w-4 h-4 mr-1"></i>
+                        ${statusText}
+                    </span>
+                </div>
+                ${submitted ? `<p class="text-xs text-gray-500 mt-1">更新时间: ${student.updateTime}</p>` : `<p class="text-xs text-gray-500 mt-1">首次提交时间: N/A</p>`}
+            </div>
+            <div>
+                <!-- 允许未提交的学生也进行提交/拍照 -->
+                <button class="w-full mt-3 bg-primary/20 hover:bg-primary/30 text-primary font-semibold py-2 rounded-lg transition" 
+                        onclick="openSubmissionModal('${student.fullName}', ${student.Id})">
+                    <i data-lucide="upload" class="w-4 h-4 inline mr-1"></i> 提交/更新作业
+                </button>
+                ${
+					submitted
+						? `
+                    <button class="w-full mt-2 bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded-lg transition shadow-md" 
+                            onclick="openViewModal('${student.fullName}', ${student.submissionId})">
+                        <i data-lucide="eye" class="w-4 h-4 inline mr-1"></i> 查看作业
+                    </button>`
+						: ""
+				}
+            </div>
+        `;
+				return card;
+			}
+
+			// --- 图像压缩函数 (前端) ---
+
+			/**
+			 * 客户端图像压缩：缩放至短边 720px，JPEG 质量 30%。
+			 * @param {File} file 原始图像文件
+			 * @param {number} targetShortSide 目标短边长度
+			 * @param {number} quality JPEG 质量 (0.0 - 1.0)
+			 * @returns {Promise<Blob>} 压缩后的图像 Blob
+			 */
+			function compressImageClientSide(file, targetShortSide = 720, quality = 0.2) {
+				return new Promise((resolve, reject) => {
+					const reader = new FileReader();
+					reader.onload = function (event) {
+						const img = new Image();
+						img.onload = function () {
+							const canvas = document.createElement("canvas");
+							const ctx = canvas.getContext("2d");
+
+							let width = img.width;
+							let height = img.height;
+
+							// 根据短边 720px 计算新尺寸
+							if (width > height) {
+								// 横向图像：短边是高度
+								height = targetShortSide;
+								width = (img.width / img.height) * height;
+							} else {
+								// 纵向或方形图像：短边是宽度
+								width = targetShortSide;
+								height = (img.height / img.width) * width;
+							}
+
+							canvas.width = width;
+							canvas.height = height;
+
+							// 绘制和压缩
+							ctx.drawImage(img, 0, 0, width, height);
+
+							// 转换为 Blob (JPEG, 质量 0.3)
+							canvas.toBlob(resolve, "image/jpeg", quality);
+						};
+						img.onerror = () => reject(new Error("图片加载失败"));
+						img.src = event.target.result;
+					};
+					reader.onerror = () => reject(new Error("文件读取失败"));
+					reader.readAsDataURL(file);
+				});
+			}
+
+			// --- 摄像头功能 ---
+
+			/**
+			 * 启动摄像头
+			 */
+			async function startCamera() {
+				try {
+					// 停止之前的摄像头流
+					if (currentStream) {
+						currentStream.getTracks().forEach((track) => track.stop());
+					}
+
+					const constraints = {
+						video: {
+							facingMode: currentFacingMode,
+							width: { ideal: 1920 },
+							height: { ideal: 1080 },
+						},
+					};
+
+					currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+					const videoElement = document.getElementById("cameraPreview");
+					videoElement.srcObject = currentStream;
+
+					// 初始化 ImageCapture API
+					const track = currentStream.getVideoTracks()[0];
+					imageCapture = new ImageCapture(track);
+
+					// 设置闪光灯状态
+					await setFlashMode(flashMode);
+
+					// 显示摄像头预览，隐藏拍摄的照片
+					document.getElementById("camera-container").classList.remove("hidden");
+					document.getElementById("capturedPhotoContainer").classList.add("hidden");
+					document.getElementById("captureButton").disabled = false;
+
+					lucide.createIcons();
+				} catch (error) {
+					console.error("启动摄像头失败:", error);
+					showMessage(`摄像头启动失败: ${error.message}`, "error");
+					// 切换到文件上传模式
+					switchToFileUpload();
+				}
+			}
+
+			/**
+			 * 设置闪光灯模式
+			 * @param {string} mode 闪光灯模式
+			 */
+			async function setFlashMode(mode) {
+				if (!imageCapture) return;
+
+				try {
+					const capabilities = imageCapture.track.getCapabilities();
+					if (capabilities.torch) {
+						await imageCapture.track.applyConstraints({
+							advanced: [{ torch: mode === "on" }],
+						});
+						flashMode = mode;
+
+						// 更新闪光灯按钮状态
+						const flashButton = document.getElementById("flashButton");
+						if (mode === "on") {
+							flashButton.classList.add("active");
+						} else {
+							flashButton.classList.remove("active");
+						}
+					}
+				} catch (error) {
+					console.warn("设置闪光灯失败:", error);
+				}
+			}
+
+			/**
+			 * 切换摄像头
+			 */
+			function switchCamera() {
+				currentFacingMode = currentFacingMode === "user" ? "environment" : "user";
+				startCamera();
+			}
+
+			/**
+			 * 拍照
+			 */
+			async function capturePhoto() {
+				if (!imageCapture) return;
+
+				try {
+					const blob = await imageCapture.takePhoto();
+					const capturedPhoto = document.getElementById("capturedPhoto");
+					capturedPhoto.src = URL.createObjectURL(blob);
+
+					// 显示拍摄的照片，隐藏摄像头预览
+					document.getElementById("camera-container").classList.add("hidden");
+					document.getElementById("capturedPhotoContainer").classList.remove("hidden");
+
+					// 重置旋转状态
+					currentRotation = 0;
+					capturedPhoto.style.transform = `rotate(${currentRotation}deg)`;
+
+					// 保存原始照片Blob
+					originalPhotoBlob = blob;
+					// 创建文件对象
+					currentFile = new File([blob], "captured-photo.jpg", { type: "image/jpeg" });
+
+					lucide.createIcons();
+				} catch (error) {
+					console.error("拍照失败:", error);
+					showMessage(`拍照失败: ${error.message}`, "error");
+				}
+			}
+
+			/**
+			 * 旋转图片
+			 * @param {number} degrees 旋转角度，正数为顺时针，负数为逆时针
+			 */
+			function rotatePhoto(degrees) {
+				const capturedPhoto = document.getElementById("capturedPhoto");
+				currentRotation = (currentRotation + degrees) % 360;
+				if (currentRotation == 0 || currentRotation == 180 || currentRotation == -180) {
+					capturedPhoto.style.transform = `rotate(${currentRotation}deg) scale(1)`;
+				} else {
+					capturedPhoto.style.transform = `rotate(${currentRotation}deg) scale(0.5)`;
+				}
+
+				// 如果旋转角度不为0，需要重新生成文件
+				if (currentRotation !== 0) {
+					applyRotationToFile();
+				} else {
+					// 如果旋转角度为0，使用原始照片
+					currentFile = new File([originalPhotoBlob], "captured-photo.jpg", { type: "image/jpeg" });
+				}
+			}
+
+			/**
+			 * 将旋转应用到文件
+			 */
+			function applyRotationToFile() {
+				const canvas = document.createElement("canvas");
+				const ctx = canvas.getContext("2d");
+				const img = document.getElementById("capturedPhoto");
+
+				// 计算旋转后的画布尺寸
+				if (currentRotation % 180 === 0) {
+					canvas.width = img.naturalWidth;
+					canvas.height = img.naturalHeight;
+				} else {
+					canvas.width = img.naturalHeight;
+					canvas.height = img.naturalWidth;
+				}
+
+				ctx.clearRect(0, 0, canvas.width, canvas.height);
+				ctx.save();
+
+				// 将原点移动到画布中心
+				ctx.translate(canvas.width / 2, canvas.height / 2);
+				ctx.rotate((currentRotation * Math.PI) / 180);
+
+				// 绘制图像
+				ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2, img.naturalWidth, img.naturalHeight);
+
+				ctx.restore();
+
+				// 转换为Blob
+				canvas.toBlob(
+					function (blob) {
+						currentFile = new File([blob], "captured-photo-rotated.jpg", { type: "image/jpeg" });
+					},
+					"image/jpeg",
+					0.9
+				);
+			}
+
+			/**
+			 * 重置旋转
+			 */
+			function resetRotation() {
+				const capturedPhoto = document.getElementById("capturedPhoto");
+				currentRotation = 0;
+				capturedPhoto.style.transform = `rotate(${currentRotation}deg) scale(1)`;
+				currentFile = new File([originalPhotoBlob], "captured-photo.jpg", { type: "image/jpeg" });
+			}
+
+			/**
+			 * 重新拍摄
+			 */
+			function retakePhoto() {
+				document.getElementById("camera-container").classList.remove("hidden");
+				document.getElementById("capturedPhotoContainer").classList.add("hidden");
+				document.getElementById("submitBtn").disabled = true;
+				currentFile = null;
+				originalPhotoBlob = null;
+				currentRotation = 0;
+			}
+
+			/**
+			 * 使用拍摄的照片
+			 */
+			function usePhoto() {
+				document.getElementById("submitBtn").disabled = false;
+				showMessage("照片已选择，请点击上传按钮提交。", "success");
+			}
+
+			/**
+			 * 切换到摄像头模式
+			 */
+			function switchToCameraMode() {
+				document.getElementById("cameraSection").classList.remove("hidden");
+				document.getElementById("fileSection").classList.add("hidden");
+				document.getElementById("cameraTabButton").classList.add("border-b-2", "border-primary", "text-primary");
+				document.getElementById("fileTabButton").classList.remove("border-b-2", "border-primary", "text-primary");
+				document.getElementById("fileTabButton").classList.add("text-gray-500");
+
+				// 启动摄像头
+				startCamera();
+			}
+
+			/**
+			 * 切换到文件上传模式
+			 */
+			function switchToFileUpload() {
+				document.getElementById("cameraSection").classList.add("hidden");
+				document.getElementById("fileSection").classList.remove("hidden");
+				document.getElementById("fileTabButton").classList.add("border-b-2", "border-primary", "text-primary");
+				document.getElementById("cameraTabButton").classList.remove("border-b-2", "border-primary", "text-primary");
+				document.getElementById("cameraTabButton").classList.add("text-gray-500");
+
+				// 停止摄像头
+				if (currentStream) {
+					currentStream.getTracks().forEach((track) => track.stop());
+					currentStream = null;
+				}
+			}
+
+			// --- 模态框逻辑 ---
+
+			/**
+			 * 打开提交/更新模态框
+			 */
+			function openSubmissionModal(studentName, studentId) {
+				document.getElementById("modalStudentName").textContent = studentName;
+				document.getElementById("modalHomeworkId").value = currentHomeworkId;
+				document.getElementById("modalStudentId").value = studentId;
+
+				// 重置表单和预览
+				document.getElementById("submissionForm").reset();
+				document.getElementById("imagePreview").src = "";
+				document.getElementById("previewContainer").classList.add("hidden");
+				document.getElementById("submitBtn").disabled = true;
+				document.getElementById("capturedPhotoContainer").classList.add("hidden");
+
+				// 重置旋转状态
+				currentRotation = 0;
+				originalPhotoBlob = null;
+
+				// 默认使用摄像头模式
+				switchToCameraMode();
+
+				document.getElementById("submissionModal").classList.remove("hidden");
+				lucide.createIcons();
+			}
+
+			/**
+			 * 打开查看作业模态框
+			 */
+			async function openViewModal(studentName, submissionId) {
+				const viewModal = document.getElementById("viewModal");
+				const imgEl = document.getElementById("submissionImageView");
+				const loadingEl = document.getElementById("viewModalLoading");
+
+				document.getElementById("viewModalStudentName").textContent = studentName;
+
+				imgEl.src = "";
+				imgEl.classList.add("hidden");
+				loadingEl.classList.remove("hidden");
+				viewModal.classList.remove("hidden");
+
+				try {
+					// 直接请求图像
+					const imageUrl = `${API_URL}?action=view_submission&submission_id=${submissionId}`;
+					imgEl.src = imageUrl + "&t=" + Date.now();
+
+					imgEl.onload = () => {
+						loadingEl.classList.add("hidden");
+						imgEl.classList.remove("hidden");
+					};
+
+					imgEl.onerror = () => {
+						loadingEl.classList.add("hidden");
+						showMessage("加载图片失败，可能是图片不存在或服务器错误。", "error");
+						closeModal("viewModal");
+					};
+				} catch (e) {
+					showMessage(`网络错误: ${e.message}`, "error");
+					closeModal("viewModal");
+				}
+				lucide.createIcons();
+			}
+
+			// --- 文件选择/预览逻辑 ---
+			document.getElementById("fileInput").addEventListener("change", function (event) {
+				const file = event.target.files[0];
+				const previewContainer = document.getElementById("previewContainer");
+				const imagePreview = document.getElementById("imagePreview");
+				const submitBtn = document.getElementById("submitBtn");
+
+				if (file) {
+					// 仅用于显示预览，不进行压缩
+					const reader = new FileReader();
+					reader.onload = function (e) {
+						imagePreview.src = e.target.result;
+						previewContainer.classList.remove("hidden");
+						submitBtn.disabled = false;
+						currentFile = file;
+					};
+					reader.readAsDataURL(file);
+				} else {
+					imagePreview.src = "";
+					previewContainer.classList.add("hidden");
+					submitBtn.disabled = true;
+					currentFile = null;
+				}
+			});
+
+			// --- 提交表单逻辑 ---
+			document.getElementById("submissionForm").addEventListener("submit", async function (event) {
+				event.preventDefault();
+
+				const submitBtn = document.getElementById("submitBtn");
+
+				if (!currentFile) {
+					showMessage("请选择要提交的作业图片。", "error");
+					return;
+				}
+
+				// 禁用按钮并显示状态
+				submitBtn.disabled = true;
+				submitBtn.querySelector("span").textContent = "压缩中...";
+				submitBtn.classList.add("animate-pulse");
+
+				let compressedBlob;
+				try {
+					// --- 1. 执行前端压缩 ---
+					compressedBlob = await compressImageClientSide(currentFile);
+					submitBtn.querySelector("span").textContent = "上传中...";
+
+					// --- 2. 准备 FormData 并上传压缩后的 Blob ---
+					const formData = new FormData();
+					formData.append("homework_id", document.getElementById("modalHomeworkId").value);
+					formData.append("student_id", document.getElementById("modalStudentId").value);
+					// 重要：将 Blob 作为文件上传，使用固定的文件名
+					formData.append("submission_file", compressedBlob, "submission.jpg");
+
+					const response = await fetch(`${API_URL}?action=submit_homework`, {
+						method: "POST",
+						body: formData,
+					});
+
+					// 检查响应类型
+					const contentType = response.headers.get("content-type");
+					if (contentType && contentType.indexOf("application/json") !== -1) {
+						const result = await response.json();
+						if (result.status === "success") {
+							showMessage(result.message, "success");
+							closeModal("submissionModal");
+							// 重新加载学生列表以更新状态
+							fetchStudentsSubmissions(currentHomeworkId);
+						} else {
+							showMessage(`提交失败: ${result.message}`, "error");
+						}
+					} else {
+						// 非 JSON 响应，可能是 PHP 错误或权限问题
+						const text = await response.text();
+						showMessage(`服务器返回非 JSON 错误 (${response.status}): ${text.substring(0, 100)}...`, "error");
+					}
+				} catch (e) {
+					showMessage(`前端压缩或网络错误: ${e.message}`, "error");
+				} finally {
+					submitBtn.disabled = false;
+					submitBtn.querySelector("span").textContent = "上传并提交";
+					submitBtn.classList.remove("animate-pulse");
+				}
+			});
+
+			// --- 初始化事件监听器 ---
+			document.addEventListener("DOMContentLoaded", function () {
+				// 摄像头控制事件
+				document.getElementById("captureButton").addEventListener("click", capturePhoto);
+				document.getElementById("switchCameraButton").addEventListener("click", switchCamera);
+				document.getElementById("flashButton").addEventListener("click", function () {
+					setFlashMode(flashMode === "on" ? "off" : "on");
+				});
+				document.getElementById("retakeButton").addEventListener("click", retakePhoto);
+				document.getElementById("usePhotoButton").addEventListener("click", usePhoto);
+
+				// 旋转按钮事件
+				document.getElementById("rotateLeftButton").addEventListener("click", function () {
+					rotatePhoto(-90);
+				});
+				document.getElementById("rotateRightButton").addEventListener("click", function () {
+					rotatePhoto(90);
+				});
+				document.getElementById("resetRotationButton").addEventListener("click", resetRotation);
+
+				// 标签页切换事件
+				document.getElementById("cameraTabButton").addEventListener("click", switchToCameraMode);
+				document.getElementById("fileTabButton").addEventListener("click", switchToFileUpload);
+			});
+
+			// --- 初始化 ---
+			window.onload = () => {
+				// 确保 Lucide Icons 首次渲染
+				lucide.createIcons();
+				const placeholder = document.getElementById("homeworkPlaceholder");
+				if (placeholder) {
+					placeholder.classList.add("hidden");
+				}
+				showHomeworkList();
+			};
+		</script>
+	</body>
+</html>
