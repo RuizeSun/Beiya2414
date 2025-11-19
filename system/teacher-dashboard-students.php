@@ -56,7 +56,6 @@ function handleCheckAuth()
             "status" => "success",
             "isLoggedIn" => true,
             "teacherId" => $teacher['Id'],
-            "isAdmin" => $teacher['isAdmin']
         ]);
     } else {
         echo json_encode(["status" => "success", "isLoggedIn" => false]);

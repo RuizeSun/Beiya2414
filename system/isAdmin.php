@@ -1,3 +1,3 @@
 <?
 require_once "database.php";
-echo check_teacher_auth();
+echo json_encode(check_teacher_auth());
