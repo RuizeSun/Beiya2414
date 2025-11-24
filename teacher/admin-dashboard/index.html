@@ -4,21 +4,26 @@
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 
-		<title>班级管理面板</title>
+		<title>班级管理面板（管理员）</title>
 		<!-- 载入 Tailwind CSS -->
 		<script src="https://cdn.tailwindcss.com"></script>
-		<!-- 载入 Inter 字体 -->
+
 		<style>
+			/* 确保 body 使用 Inter 字体 */
 			body {
+				font-family: "Inter", sans-serif;
 				background-color: #f7f9fc; /* 浅灰色背景 */
 			}
 			/* 确保 iframe 在内容区块中能完全填满 */
 			.tab-content iframe {
 				width: 100%;
 				border: none;
-				height: 80vh;
+				/* 设置一个响应式高度，确保内容可见 */
+				height: calc(100vh - 180px);
+				min-height: 500px;
 			}
 		</style>
+
 		<script>
 			tailwind.config = {
 				theme: {
@@ -61,13 +66,22 @@
 				}
 			}
 
-			// 页面载入完成后，预设显示第一个分页
-			document.addEventListener("DOMContentLoaded", () => {
-				showTab("dashboard");
-			});
+			// 注意：这里仅保留 showTab 函数，其他的逻辑被移至底部的 DOMContentLoaded 监听器中
 		</script>
 	</head>
 	<body class="min-h-screen">
+		<!-- 会话过期提示模态框 (Modal) -->
+		<!-- 核心功能：用于替代 alert() 提示用户会话过期，并引导用户重新登录。 -->
+		<div id="session-modal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-75 transition-opacity duration-300 ease-out flex items-center justify-center">
+			<!-- 模态框内容 -->
+			<div class="bg-white rounded-xl shadow-2xl w-full max-w-sm m-4 p-6 transform transition-all duration-300 ease-out scale-100">
+				<h3 class="text-xl font-bold text-red-600 mb-4 border-b pb-2">会话过期通知</h3>
+				<p class="text-gray-700 mb-6">登录已过期，请重新登录！</p>
+				<!-- 点击按钮触发重定向 -->
+				<button id="modal-confirm-btn" class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2 rounded-lg transition-colors shadow-md hover:shadow-lg">了解</button>
+			</div>
+		</div>
+
 		<!-- 主面板容器 -->
 		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 			<!-- 标题区块 -->
@@ -77,13 +91,12 @@
 			</header>
 
 			<!-- 侧边栏与内容区块的 Flex 布局 -->
-			<!-- 在中等萤幕以上 (md) 启用 Flex 布局 -->
 			<div class="md:flex md:space-x-6">
 				<!-- 侧边栏导航列 (Sidebar) -->
 				<nav class="md:w-64 flex-shrink-0 bg-white rounded-xl shadow-lg p-3 mb-6 md:mb-0">
 					<div class="space-y-2">
 						<!-- 每个按钮都会呼叫 showTab('tab-id') -->
-						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="location.href='/teacher/index.html'">返回主页</button>
+						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out text-gray-600 hover:text-primary-dark hover:bg-gray-100" onclick="location.href='/teacher/index.html'">返回主页</button>
 						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('dashboard')" data-tab="dashboard">仪表盘</button>
 						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('students')" data-tab="students">学生管理</button>
 						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('groups')" data-tab="groups">小组管理</button>
@@ -98,8 +111,8 @@
 					<div class="bg-white p-0 sm:p-0 rounded-xl shadow-lg border-t border-gray-200 min-h-[75vh]">
 						<!-- 1. 仪表板内容 (保持模拟内容) -->
 						<div id="dashboard" class="tab-content hidden">
-							<h2 class="text-2xl font-bold text-primary mb-4">仪表盘</h2>
-							<div class="p-6 bg-indigo-50 border border-indigo-200 rounded-xl">
+							<h2 class="text-2xl font-bold text-primary mb-4 p-6">仪表盘</h2>
+							<div class="p-6 bg-indigo-50 border border-indigo-200 rounded-xl m-6">
 								<p class="text-lg font-medium text-indigo-800">欢迎来到管理员仪表盘！</p>
 								<p class="mt-2 text-indigo-700">此处应显示班级的关键数据摘要，例如活跃学生数、最近的评分活动和系统健康状态。</p>
 							</div>
@@ -124,7 +137,7 @@
 						<div id="scorechangelog" class="tab-content hidden">
 							<iframe src="/teacher/admin-dashboard/scorechangelog.html" id="scorechangelog-iframe"></iframe>
 						</div>
-						<!-- 5. 量化评分变动记录内容 (替换回 iframe) -->
+						<!-- 6. 量化评分变动类别内容 (替换回 iframe) -->
 						<div id="scorechangetype" class="tab-content hidden">
 							<iframe src="/teacher/admin-dashboard/scorechangetype.html" id="scorechangetype-iframe"></iframe>
 						</div>
@@ -132,11 +145,105 @@
 				</div>
 			</div>
 		</div>
+
+		<!-- 载入 Cookies 库 -->
 		<script src="https://cdn.jsdelivr.net/npm/js-cookie@2/src/js.cookie.min.js"></script>
+
+		<!-- 新增会话检查逻辑 -->
 		<script>
-			if (Cookies.get("token") == undefined) {
-				window.location.href = "/teacher/login.html";
+			// --- 全局常量 ---
+			// 教师和管理员都使用相同的会话检查端点和登录页面
+			const SESSION_CHECK_URL = "/system/teacher-profile.php";
+			const LOGIN_URL = "/teacher/login.html";
+			const CHECK_INTERVAL = 30000; // 30秒
+
+			let sessionInterval; // 用于存储 setInterval 的 ID
+
+			// --- 模态框处理函数 ---
+			// 显示会话过期模态框
+			function showSessionExpiredModal() {
+				const modal = document.getElementById("session-modal");
+				// 确保移除 hidden 并添加 flex 以显示模态框
+				modal.classList.remove("hidden");
+				modal.classList.add("flex");
 			}
+
+			// 处理模态框确认点击（并重定向）
+			function handleModalConfirm() {
+				// 停止心跳检查
+				clearInterval(sessionInterval);
+				// 重定向到登录页面
+				window.location.href = LOGIN_URL;
+			}
+
+			// --- 会话检查逻辑 ---
+
+			/**
+			 * 尝试向服务器发送一次请求以检查会话状态。
+			 * @returns {Promise<boolean>} 如果状态码是 200 或 500，返回 true (成功)，否则返回 false (失败)。
+			 */
+			async function attemptSessionCheck() {
+				try {
+					// 使用 no-store 确保不使用缓存
+					const response = await fetch(SESSION_CHECK_URL, { method: "GET", cache: "no-store" });
+
+					// 按照要求，如果状态码是 200 或 500，则认为会话有效
+					if (response.status === 200 || response.status === 500) {
+						return true; // 检查成功
+					} else {
+						// 状态码非 200 且非 500 (如 401, 403)
+						return false; // 检查失败
+					}
+				} catch (error) {
+					// 网络错误 (如无法连接到服务器)
+					return false; // 检查失败
+				}
+			}
+
+			// 主会话检查函数，包含重试逻辑
+			async function checkSession() {
+				// 第一次尝试
+				const firstAttemptSuccess = await attemptSessionCheck();
+
+				if (firstAttemptSuccess) {
+					return; // 会话有效，退出
+				}
+
+				// 第一次尝试失败，等待 1 秒后进行重试
+				// 使用 setTimeout 确保在短时间后重试
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+
+				// 第二次尝试
+				const secondAttemptSuccess = await attemptSessionCheck();
+
+				if (secondAttemptSuccess) {
+					return; // 重试后成功，退出
+				}
+
+				// 两次尝试均失败，判定为登录过期
+				clearInterval(sessionInterval); // 停止定时器
+				showSessionExpiredModal(); // 显示模态框
+			}
+
+			// 页面载入完成后执行
+			document.addEventListener("DOMContentLoaded", () => {
+				// 1. 初始 Cookie 检查
+				if (Cookies.get("token") === undefined) {
+					window.location.href = LOGIN_URL;
+					return; // 立即退出，避免执行后续逻辑
+				}
+
+				// 2. 预设显示第一个分页（管理员面板的第一个是 'dashboard'）
+				showTab("dashboard");
+
+				// 3. 启动会话心跳检查
+				// 立即执行一次，然后每隔 30 秒执行一次
+				checkSession();
+				sessionInterval = setInterval(checkSession, CHECK_INTERVAL);
+
+				// 4. 为模态框按钮添加事件监听器
+				document.getElementById("modal-confirm-btn").addEventListener("click", handleModalConfirm);
+			});
 		</script>
 	</body>
 </html>
