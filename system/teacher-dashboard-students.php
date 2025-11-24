@@ -1,24 +1,24 @@
 <?
-// 設定內容類型為 JSON
+// 设定内容类型为 JSON
 header('Content-Type: application/json; charset=utf-8');
-// 引入資料庫連線和認證函式庫
+// 引入数据库连线和认证函式库
 require_once './database.php';
-// 獲取 action 參數
+// 获取 action 参数
 $action = $_GET['action'] ?? '';
 
-// 只有在處理 POST 請求時才解析輸入
+// 只有在处理 POST 请求时才解析输入
 $input = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $json = file_get_contents('php://input');
     $input = json_decode($json, true);
     if (json_last_error() !== JSON_ERROR_NONE) {
         http_response_code(400);
-        echo json_encode(["status" => "error", "message" => "無效的 JSON 輸入"]);
+        echo json_encode(["status" => "error", "message" => "无效的 JSON 输入"]);
         exit();
     }
 }
 
-// 路由處理
+// 路由处理
 switch ($action) {
     case 'checkAuth':
         handleCheckAuth();
@@ -40,13 +40,13 @@ switch ($action) {
         break;
     default:
         http_response_code(404);
-        echo json_encode(["status" => "error", "message" => "無效的 API 動作"]);
+        echo json_encode(["status" => "error", "message" => "无效的 API 动作"]);
         break;
 }
 
 
 /**
- * 處理驗證檢查
+ * 处理验证检查
  */
 function handleCheckAuth()
 {
@@ -64,14 +64,14 @@ function handleCheckAuth()
 
 
 /**
- * 處理獲取學生列表
+ * 处理获取学生列表
  */
 function handleGetStudents()
 {
     global $db;
-    require_teacher_auth(); // 驗證教師身份
+    require_teacher_auth(); // 验证教师身份
 
-    $sort = $_GET['sort'] ?? 'Id'; // 預設排序為學號
+    $sort = $_GET['sort'] ?? 'Id'; // 预设排序为学号
     $allowedSorts = ['Id', 'groupId', 'score'];
 
     if (!in_array($sort, $allowedSorts)) {
@@ -98,12 +98,12 @@ function handleGetStudents()
         echo json_encode(["status" => "success", "students" => $students]);
     } catch (PDOException $e) {
         http_response_code(500);
-        echo json_encode(["status" => "error", "message" => "查詢學生資料失敗: " . $e->getMessage()]);
+        echo json_encode(["status" => "error", "message" => "查询学生资料失败: " . $e->getMessage()]);
     }
 }
 
 /**
- * 處理獲取量化評分變動類型
+ * 处理获取量化评分变动类型
  */
 function handleGetScoreTypes()
 {
@@ -116,14 +116,14 @@ function handleGetScoreTypes()
         echo json_encode(["status" => "success", "scoreTypes" => $types]);
     } catch (PDOException $e) {
         http_response_code(500);
-        echo json_encode(["status" => "error", "message" => "查詢評分類型失敗: " . $e->getMessage()]);
+        echo json_encode(["status" => "error", "message" => "查询评分类型失败: " . $e->getMessage()]);
     }
 }
 
 
 /**
- * 處理學生量化評分加分或減分
- * @param array $input POST 資料
+ * 处理学生量化评分加分或减分
+ * @param array $input POST 资料
  */
 function handleUpdateScore(array $input)
 {
@@ -132,7 +132,7 @@ function handleUpdateScore(array $input)
     $teacherId = $teacher['Id'];
     $timestamp = time();
 
-    // 參數驗證
+    // 参数验证
     $studentId = $input['studentId'] ?? null;
     $changeAmount = $input['changeAmount'] ?? null;
     $reasonId = $input['reasonId'] ?? null;
@@ -140,7 +140,7 @@ function handleUpdateScore(array $input)
 
     if (!$studentId || $reasonId === null) {
         http_response_code(400);
-        echo json_encode(["status" => "error", "message" => "缺少學生ID或變動量"]);
+        echo json_encode(["status" => "error", "message" => "缺少学生ID或变动量"]);
         exit();
     }
 
@@ -148,11 +148,11 @@ function handleUpdateScore(array $input)
     $finalChange = (float)$changeAmount;
 
     try {
-        $db->beginTransaction(); // 開始事務
+        $db->beginTransaction(); // 开始事务
 
-        // 1. 處理原因和變動量
+        // 1. 处理原因和变动量
         if ($reasonId && $reasonId !== 'custom') {
-            // 使用預設變動項
+            // 使用预设变动项
             $stmt = $db->prepare("SELECT name, `change` FROM scorechangetype WHERE Id = ?");
             $stmt->execute([$reasonId]);
             $type = $stmt->fetch();
@@ -160,27 +160,27 @@ function handleUpdateScore(array $input)
             if (!$type) {
                 $db->rollBack();
                 http_response_code(400);
-                echo json_encode(["status" => "error", "message" => "無效的變動項ID"]);
+                echo json_encode(["status" => "error", "message" => "无效的变动项ID"]);
                 exit();
             }
-            $reason = $reasonId; // 記錄 scorechangetype Id
-            $finalChange = (float)$type['change']; // 使用預設變動量
+            $reason = $reasonId; // 记录 scorechangetype Id
+            $finalChange = (float)$type['change']; // 使用预设变动量
         } else if ($reasonId === 'custom') {
-            // 自定義變動項
+            // 自定义变动项
             if (!$customReason) {
                 $db->rollBack();
                 http_response_code(400);
-                echo json_encode(["status" => "error", "message" => "自定義原因不能為空"]);
+                echo json_encode(["status" => "error", "message" => "自定义原因不能为空"]);
                 exit();
             }
-            // 記錄為 custom-<原因>
+            // 记录为 custom-<原因>
             $reason = "custom-" . $customReason;
-            // $finalChange 已經從 $input['changeAmount'] 取得
+            // $finalChange 已经从 $input['changeAmount'] 取得
         } else {
-            // 如果沒有提供任何原因，視為無效
+            // 如果没有提供任何原因，视为无效
             $db->rollBack();
             http_response_code(400);
-            echo json_encode(["status" => "error", "message" => "必須提供變動原因"]);
+            echo json_encode(["status" => "error", "message" => "必须提供变动原因"]);
             exit();
         }
 
@@ -191,30 +191,30 @@ function handleUpdateScore(array $input)
         if ($stmt->rowCount() === 0) {
             $db->rollBack();
             http_response_code(404);
-            echo json_encode(["status" => "error", "message" => "找不到學生，或分數無變動"]);
+            echo json_encode(["status" => "error", "message" => "找不到学生，或分数无变动"]);
             exit();
         }
 
-        // 3. 寫入 scorechangelog
+        // 3. 写入 scorechangelog
         $stmt = $db->prepare("INSERT INTO scorechangelog (teacherid, reason, `change`, timestamp, studentid) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$teacherId, $reason, $finalChange, $timestamp, $studentId]);
 
-        $db->commit(); // 提交事務
+        $db->commit(); // 提交事务
 
         echo json_encode([
             "status" => "success",
-            "message" => "評分更新成功",
+            "message" => "评分更新成功",
             "change" => $finalChange
         ]);
     } catch (PDOException $e) {
-        $db->rollBack(); // 發生錯誤時回滾
+        $db->rollBack(); // 发生错误时回滚
         http_response_code(500);
-        echo json_encode(["status" => "error", "message" => "評分更新失敗: " . $e->getMessage()]);
+        echo json_encode(["status" => "error", "message" => "评分更新失败: " . $e->getMessage()]);
     }
 }
 
 /**
- * 處理查看教師自己對學生的加減分紀錄
+ * 处理查看教师自己对学生的加减分纪录
  */
 function handleGetTeacherLogs()
 {
@@ -243,15 +243,15 @@ function handleGetTeacherLogs()
         $stmt->execute([$teacherId]);
         $logs = $stmt->fetchAll();
 
-        // 格式化學生和教師姓名
+        // 格式化学生和教师姓名
         foreach ($logs as &$log) {
             $log['studentFullName'] = $log['lastname'] . $log['firstname'];
             $log['teacherFullName'] = $log['teacherLastname'] . $log['teacherFirstname'];
-            // 處理原因顯示
+            // 处理原因显示
             if (strpos($log['reason'], 'custom-') === 0) {
                 $log['displayReason'] = substr($log['reason'], 7);
             } else {
-                // 嘗試查詢 scorechangetype 的名稱
+                // 尝试查询 scorechangetype 的名称
                 $reasonId = $log['reason'];
                 $stmtType = $db->prepare("SELECT name FROM scorechangetype WHERE Id = ?");
                 $stmtType->execute([$reasonId]);
@@ -263,13 +263,13 @@ function handleGetTeacherLogs()
         echo json_encode(["status" => "success", "logs" => $logs]);
     } catch (PDOException $e) {
         http_response_code(500);
-        echo json_encode(["status" => "error", "message" => "查詢變動紀錄失敗: " . $e->getMessage()]);
+        echo json_encode(["status" => "error", "message" => "查询变动纪录失败: " . $e->getMessage()]);
     }
 }
 
 /**
- * 處理撤銷教師自己對學生的加減分
- * @param array $input POST 資料
+ * 处理撤销教师自己对学生的加减分
+ * @param array $input POST 资料
  */
 function handleUndoLog(array $input)
 {
@@ -282,12 +282,12 @@ function handleUndoLog(array $input)
 
     if (!$logIdToUndo) {
         http_response_code(400);
-        echo json_encode(["status" => "error", "message" => "缺少要撤銷的紀錄 ID"]);
+        echo json_encode(["status" => "error", "message" => "缺少要撤销的纪录 ID"]);
         exit();
     }
 
     try {
-        // 1. 獲取原始紀錄並驗證權限（只能撤銷自己的紀錄，且非撤銷紀錄本身）
+        // 1. 获取原始纪录并验证权限（只能撤销自己的纪录，且非撤销纪录本身）
         $stmt = $db->prepare("SELECT Id, studentid, `change` FROM scorechangelog WHERE Id = ? AND teacherid = ? AND reason NOT LIKE 'custom-撤销[%'");
         $stmt->execute([$logIdToUndo, $teacherId]);
         $originalLog = $stmt->fetch();
@@ -299,7 +299,7 @@ function handleUndoLog(array $input)
         }
 
         // =======================================================
-        // 【關鍵修改】：檢查是否已被撤銷過（防止重複撤銷）
+        // 【关键修改】：检查是否已被撤销过（防止重复撤销）
         // =======================================================
         $undoReasonCheck = "custom-撤销[{$logIdToUndo}]的变动";
         $checkUndoStmt = $db->prepare("SELECT Id FROM scorechangelog WHERE reason = ?");
@@ -307,20 +307,20 @@ function handleUndoLog(array $input)
 
         if ($checkUndoStmt->rowCount() > 0) {
             http_response_code(400);
-            echo json_encode(["status" => "error", "message" => "該紀錄已被撤銷過，不能再次撤銷"]);
+            echo json_encode(["status" => "error", "message" => "该纪录已被撤销过，不能再次撤销"]);
             exit();
         }
         // =======================================================
 
-        // 開始事務，確保操作原子性
+        // 开始事务，确保操作原子性
         $db->beginTransaction();
 
         $studentId = $originalLog['studentid'];
         $originalChange = (float)$originalLog['change'];
-        $undoChange = -$originalChange; // 撤銷變動量：相反數
-        $undoReason = $undoReasonCheck; // 使用已檢查過的原因格式
+        $undoChange = -$originalChange; // 撤销变动量：相反数
+        $undoReason = $undoReasonCheck; // 使用已检查过的原因格式
 
-        // 2. 寫入新的撤銷紀錄
+        // 2. 写入新的撤销纪录
         $stmt = $db->prepare("INSERT INTO scorechangelog (teacherid, reason, `change`, timestamp, studentid) VALUES (?, ?, ?, ?, ?)");
         $stmt->execute([$teacherId, $undoReason, $undoChange, $timestamp, $studentId]);
 
@@ -328,11 +328,11 @@ function handleUndoLog(array $input)
         $stmt = $db->prepare("UPDATE students SET score = score + ? WHERE Id = ?");
         $stmt->execute([$undoChange, $studentId]);
 
-        // 檢查學生是否更新成功（可選，如果確定學生存在則可省略）
+        // 检查学生是否更新成功（可选，如果确定学生存在则可省略）
         if ($stmt->rowCount() === 0) {
             $db->rollBack();
             http_response_code(404);
-            echo json_encode(["status" => "error", "message" => "更新學生分數失敗，撤銷操作回滾"]);
+            echo json_encode(["status" => "error", "message" => "更新学生分数失败，撤销操作回滚"]);
             exit();
         }
 
@@ -344,11 +344,11 @@ function handleUndoLog(array $input)
             "undoChange" => $undoChange
         ]);
     } catch (PDOException $e) {
-        // 確保在發生異常時回滾
+        // 确保在发生异常时回滚
         if ($db->inTransaction()) {
             $db->rollBack();
         }
         http_response_code(500);
-        echo json_encode(["status" => "error", "message" => "撤銷操作失敗: " . $e->getMessage()]);
+        echo json_encode(["status" => "error", "message" => "撤销操作失败: " . $e->getMessage()]);
     }
 }

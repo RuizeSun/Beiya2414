@@ -10,7 +10,7 @@ try {
     $db = new PDO($dsn, DB_USERNAME, DB_PASSWORD, $options);
 } catch (\PDOException $e) {
     http_response_code(500);
-    echo json_encode(["status" => "error", "message" => "資料庫連線錯誤: " . $e->getMessage()]);
+    echo json_encode(["status" => "error", "message" => "数据库连线错误: " . $e->getMessage()]);
     exit;
 }
 function check_admin_auth()
@@ -35,7 +35,7 @@ function require_admin_auth()
     if (!$admin) {
         http_response_code(401);
         header('Content-Type: text/html; charset=utf-8');
-        echo '<div style="padding: 20px; font-family: sans-serif; text-align: center; background-color: #fef2f2; border: 1px solid #f87171; border-radius: 8px; color: #b91c1c;"><h1>未授權訪問</h1><p>您必須以管理員身份登錄才能查看此頁面。</p><p>請確保您的瀏覽器中設置了有效的管理員 Token Cookie。</p></div>';
+        echo '<div style="padding: 20px; font-family: sans-serif; text-align: center; background-color: #fef2f2; border: 1px solid #f87171; border-radius: 8px; color: #b91c1c;"><h1>未授权访问</h1><p>您必须以管理员身份登录才能查看此页面。</p><p>请确保您的浏览器中设置了有效的管理员 Token Cookie。</p></div>';
         exit();
     }
     return $admin;
@@ -62,7 +62,7 @@ function require_teacher_auth()
     if (!$teacher) {
         http_response_code(401);
         header('Content-Type: text/html; charset=utf-8');
-        echo '<div style="padding: 20px; font-family: sans-serif; text-align: center; background-color: #fef2f2; border: 1px solid #f87171; border-radius: 8px; color: #b91c1c;"><h1>未授權訪問</h1><p>您必須以教師身份登錄才能查看此頁面。</p><p>請確保您的瀏覽器中設置了有效的教師 Token Cookie。</p></div>';
+        echo '<div style="padding: 20px; font-family: sans-serif; text-align: center; background-color: #fef2f2; border: 1px solid #f87171; border-radius: 8px; color: #b91c1c;"><h1>未授权访问</h1><p>您必须以教师身份登录才能查看此页面。</p><p>请确保您的浏览器中设置了有效的教师 Token Cookie。</p></div>';
         exit();
     }
     return $teacher;
@@ -89,7 +89,7 @@ function require_screen_auth()
     if (!$screen) {
         http_response_code(401);
         header('Content-Type: text/html; charset=utf-8');
-        echo '<div style="padding: 20px; font-family: sans-serif; text-align: center; background-color: #fef2f2; border: 1px solid #f87171; border-radius: 8px; color: #b91c1c;"><h1>大屏未授權訪問</h1><p>您必須使用有效的 Token 才能訪問大屏頁面。</p><p>請確保瀏覽器中設置了有效的 <kbd>screen_token</kbd> Cookie。</p></div>';
+        echo '<div style="padding: 20px; font-family: sans-serif; text-align: center; background-color: #fef2f2; border: 1px solid #f87171; border-radius: 8px; color: #b91c1c;"><h1>大屏未授权访问</h1><p>您必须使用有效的 Token 才能访问大屏页面。</p><p>请确保浏览器中设置了有效的 <kbd>screen_token</kbd> Cookie。</p></div>';
         exit();
     }
     return $screen;
