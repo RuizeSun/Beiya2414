@@ -31,43 +31,20 @@
 					},
 				},
 			};
-
-			// JavaScript 函数：切换分页内容
-			function showTab(tabId) {
-				// 隐藏所有内容区块
-				document.querySelectorAll(".tab-content").forEach((content) => {
-					content.classList.add("hidden");
-					content.classList.remove("block");
-				});
-
-				// 移除所有按钮的 active 样式 (针对侧边栏设计)
-				document.querySelectorAll(".tab-button").forEach((button) => {
-					button.classList.remove("bg-primary-dark/10", "text-primary-dark", "font-semibold", "border-l-4", "border-primary-dark");
-					button.classList.add("text-gray-600", "hover:text-primary-dark", "hover:bg-gray-100");
-				});
-
-				// 显示选定的内容区块
-				const selectedContent = document.getElementById(tabId);
-				if (selectedContent) {
-					selectedContent.classList.remove("hidden");
-					selectedContent.classList.add("block");
-				}
-
-				// 为选定的按钮添加 active 样式
-				const selectedButton = document.querySelector(`.tab-button[data-tab='${tabId}']`);
-				if (selectedButton) {
-					selectedButton.classList.add("bg-primary-dark/10", "text-primary-dark", "font-semibold", "border-l-4", "border-primary-dark");
-					selectedButton.classList.remove("text-gray-600", "hover:text-primary-dark", "hover:bg-gray-100");
-				}
-			}
-
-			// 页面载入完成后，预设显示第一个分页
-			document.addEventListener("DOMContentLoaded", () => {
-				showTab("dashboard");
-			});
 		</script>
 	</head>
 	<body class="min-h-screen">
+		<!-- 会话过期提示模态框 (Modal) -->
+		<!-- 核心功能：用于替代 alert() 提示用户会话过期，并引导用户重新登录。 -->
+		<div id="session-modal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-75 transition-opacity duration-300 ease-out flex items-center justify-center">
+			<!-- 模态框内容 -->
+			<div class="bg-white rounded-xl shadow-2xl w-full max-w-sm m-4 p-6 transform transition-all duration-300 ease-out scale-100">
+				<h3 class="text-xl font-bold text-red-600 mb-4 border-b pb-2">会话过期通知</h3>
+				<p class="text-gray-700 mb-6">登录已过期，请重新登录！</p>
+				<!-- 点击按钮触发重定向 -->
+				<button id="modal-confirm-btn" class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2 rounded-lg transition-colors shadow-md hover:shadow-lg">了解</button>
+			</div>
+		</div>
 		<!-- 主面板容器 -->
 		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 			<!-- 标题区块 -->
@@ -108,5 +85,122 @@
 				</div>
 			</div>
 		</div>
+		<script>
+			const CHECK_INTERVAL = 10000;
+			const SESSION_CHECK_URL = "/system/screen-profile.php";
+			const LOGIN_URL = "/screen/login.html";
+			let sessionInterval; // 用于存储 setInterval 的 ID
+
+			// --- 模态框处理函数 ---
+			// 显示会话过期模态框
+			function showSessionExpiredModal() {
+				const modal = document.getElementById("session-modal");
+				// 确保移除 hidden 并添加 flex 以显示模态框
+				modal.classList.remove("hidden");
+				modal.classList.add("flex");
+			}
+
+			// 处理模态框确认点击（并重定向）
+			function handleModalConfirm() {
+				// 停止心跳检查
+				clearInterval(sessionInterval);
+				// 重定向到登录页面
+				window.location.href = LOGIN_URL;
+			}
+			// JavaScript 函数：切换分页内容
+			function showTab(tabId) {
+				// 隐藏所有内容区块
+				document.querySelectorAll(".tab-content").forEach((content) => {
+					content.classList.add("hidden");
+					content.classList.remove("block");
+				});
+
+				// 移除所有按钮的 active 样式 (针对侧边栏设计)
+				document.querySelectorAll(".tab-button").forEach((button) => {
+					button.classList.remove("bg-primary-dark/10", "text-primary-dark", "font-semibold", "border-l-4", "border-primary-dark");
+					button.classList.add("text-gray-600", "hover:text-primary-dark", "hover:bg-gray-100");
+				});
+
+				// 显示选定的内容区块
+				const selectedContent = document.getElementById(tabId);
+				if (selectedContent) {
+					selectedContent.classList.remove("hidden");
+					selectedContent.classList.add("block");
+				}
+
+				// 为选定的按钮添加 active 样式
+				const selectedButton = document.querySelector(`.tab-button[data-tab='${tabId}']`);
+				if (selectedButton) {
+					selectedButton.classList.add("bg-primary-dark/10", "text-primary-dark", "font-semibold", "border-l-4", "border-primary-dark");
+					selectedButton.classList.remove("text-gray-600", "hover:text-primary-dark", "hover:bg-gray-100");
+				}
+			}
+
+			/**
+			 * 尝试向服务器发送一次请求以检查会话状态。
+			 * @returns {Promise<boolean>} 如果状态码是 200 或 500，返回 true (成功)，否则返回 false (失败)。
+			 */
+			async function attemptSessionCheck() {
+				try {
+					// 使用 no-store 确保不使用缓存
+					const response = await fetch(SESSION_CHECK_URL, { method: "GET", cache: "no-store" });
+
+					// 按照要求，如果状态码是 200 或 500，则认为会话有效
+					if (response.status === 200 || response.status === 500) {
+						return true; // 检查成功
+					} else {
+						// 状态码非 200 且非 500 (如 401, 403)
+						return false; // 检查失败
+					}
+				} catch (error) {
+					// 网络错误 (如无法连接到服务器)
+					return false; // 检查失败
+				}
+			}
+
+			// 主会话检查函数，包含重试逻辑
+			async function checkSession() {
+				// 第一次尝试
+				const firstAttemptSuccess = await attemptSessionCheck();
+
+				if (firstAttemptSuccess) {
+					return; // 会话有效，退出
+				}
+
+				// 第一次尝试失败，等待 1 秒后进行重试
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+
+				// 第二次尝试
+				const secondAttemptSuccess = await attemptSessionCheck();
+
+				if (secondAttemptSuccess) {
+					return; // 重试后成功，退出
+				}
+
+				// 两次尝试均失败，判定为登录过期
+				clearInterval(sessionInterval); // 停止定时器
+				showSessionExpiredModal(); // 显示模态框
+			}
+
+			// 页面载入完成后，预设显示第一个分页
+			document.addEventListener("DOMContentLoaded", () => {
+				showTab("dashboard");
+				// 1. 初始 Cookie 检查
+				if (Cookies.get("token") === undefined) {
+					window.location.href = LOGIN_URL;
+					return; // 立即退出，避免执行后续逻辑
+				}
+
+				// 3. 启动会话心跳检查
+				// 立即执行一次，然后每隔 30 秒执行一次
+				checkSession();
+				sessionInterval = setInterval(checkSession, CHECK_INTERVAL);
+
+				// 4. 为模态框按钮添加事件监听器
+				document.getElementById("modal-confirm-btn").addEventListener("click", handleModalConfirm);
+			});
+		</script>
+		<!-- 载入 Cookies 库 -->
+		<script src="https://cdn.jsdelivr.net/npm/js-cookie@2/src/js.cookie.min.js"></script>
 	</body>
 </html>
