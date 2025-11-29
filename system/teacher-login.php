@@ -115,7 +115,7 @@ try {
     echo json_encode([
         "status" => "error",
         "message" => "登录失败：服务器数据库操作错误。",
-        "details" => $e->getMessage() // 仅用于调试，正式环境应隐藏
+        "details" => "无"
     ]);
 }
 // 脚本结束
