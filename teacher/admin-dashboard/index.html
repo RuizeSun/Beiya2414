@@ -103,6 +103,7 @@
 						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('teachers')" data-tab="teachers">教师管理</button>
 						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('scorechangelog')" data-tab="scorechangelog">量化评分变动记录</button>
 						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('scorechangetype')" data-tab="scorechangetype">量化评分变动类别</button>
+						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('homework-management')" data-tab="homework-management">作业管理</button>
 					</div>
 				</nav>
 
@@ -140,6 +141,10 @@
 						<!-- 6. 量化评分变动类别内容 (替换回 iframe) -->
 						<div id="scorechangetype" class="tab-content hidden">
 							<iframe src="/teacher/admin-dashboard/scorechangetype.html" id="scorechangetype-iframe"></iframe>
+						</div>
+						<!-- 7. 作业 -->
+						<div id="homework-management" class="tab-content hidden">
+							<iframe src="/teacher/admin-dashboard/homework.html" id="homework-management-iframe"></iframe>
 						</div>
 					</div>
 				</div>
