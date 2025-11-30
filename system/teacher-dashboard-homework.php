@@ -1,356 +1,295 @@
 <?php
-// 设置 Content-Type 为 JSON
+// 设定内容类型为 JSON
 header('Content-Type: application/json; charset=utf-8');
+// 引入数据库连线和认证函式库 (假设 database.php 在同一目录)
+require_once './database.php';
 
-// 引入数据库连线与验证脚本
-// 假设 database.php 包含 $db (PDO物件), require_teacher_auth() 和 format_names()
-require_once 'database.php';
-
-/**
- * 辅助函数：输出 JSON 响应并终止脚本
- * @param array $data 响应数据
- * @param int $httpCode HTTP 状态码
- */
-function send_json_response(array $data, int $httpCode = 200)
-{
-    http_response_code($httpCode);
-    echo json_encode($data);
-    exit;
-}
-
-// ----------------------------------------------------
-// 1. 验证教师权限并取得教师 ID
-// ----------------------------------------------------
-try {
-    // require_teacher_auth 会在验证失败时终止脚本并输出 HTML 错误
-    $teacher = require_teacher_auth();
-    $teacherId = $teacher['Id'];
-} catch (Exception $e) {
-    // 捕获任何潜在的例外，并以 JSON 形式回传错误 (虽然 require_teacher_auth 通常会在内部处理错误)
-    send_json_response(['status' => 'error', 'message' => '验证失败或数据库连线错误。'], 500);
-}
-
-
-// 获取请求的动作
+// 获取 action 参数
 $action = $_GET['action'] ?? '';
-$method = $_SERVER['REQUEST_METHOD'];
 
-// 确保请求是 POST 方式用于修改操作
-if (in_array($action, ['create', 'update', 'delete']) && $method !== 'POST') {
-    send_json_response(['status' => 'error', 'message' => '此操作必须使用 POST 方法。'], 405);
-}
-
-// 获取 POST 请求体数据
+// 解析 POST 输入
 $input = [];
-if ($method === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $json = file_get_contents('php://input');
     $input = json_decode($json, true);
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        send_json_response(['status' => 'error', 'message' => '无效的 JSON 输入。'], 400);
+}
+
+// 路由处理
+switch ($action) {
+    case 'list':
+        handleList();
+        break;
+    case 'create':
+        handleCreate($input);
+        break;
+    case 'update':
+        handleUpdate($input);
+        break;
+    case 'delete':
+        handleDelete($input);
+        break;
+    case 'submissions':
+        handleSubmissions();
+        break;
+    case 'view_submission':
+        handleViewSubmission();
+        break;
+    case 'set_status':
+        handleSetStatus($input);
+        break;
+    default:
+        http_response_code(404);
+        echo json_encode(["status" => "error", "message" => "无效的 API 动作"]);
+        break;
+}
+
+/**
+ * 获取作业列表
+ */
+function handleList()
+{
+    global $db;
+    require_teacher_auth();
+
+    try {
+        $stmt = $db->query("SELECT * FROM homework ORDER BY Id DESC");
+        $homeworks = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // 处理过期状态和时间格式
+        foreach ($homeworks as &$hw) {
+            $hw['isExpired'] = time() > $hw['stoptime'];
+            $hw['stoptime_formatted'] = date('Y-m-d H:i', $hw['stoptime']);
+        }
+
+        echo json_encode(["status" => "success", "data" => $homeworks]);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(["status" => "error", "message" => $e->getMessage()]);
     }
 }
 
+/**
+ * 创建新作业
+ */
+function handleCreate($input)
+{
+    global $db;
+    $teacher = require_teacher_auth();
 
-switch ($action) {
-    // ----------------------------------------------------
-    // 2. 布置作业 (Create Homework) - POST
-    // ----------------------------------------------------
-    case 'create':
-        $title = $input['title'] ?? null;
-        $description = $input['description'] ?? null;
-        // 确保布林值是 0 或 1
-        $isforallstudents = ($input['isforallstudents'] ?? 0) ? 1 : 0;
-        $submit = ($input['submit'] ?? 0) ? 1 : 0;
-        $stopTime = $input['stopTime'] ?? null;
+    $title = $input['title'] ?? '';
+    $description = $input['description'] ?? '';
+    $stopTimeStr = $input['stopTime'] ?? '';
+    $isForAll = $input['isforallstudents'] ?? 1;
+    $submit = $input['submit'] ?? 1;
 
-        if (!$title || !$description || !$stopTime) {
-            send_json_response(['status' => 'error', 'message' => '标题、描述和截止时间不能为空。'], 400);
+    if (!$title || !$stopTimeStr) {
+        echo json_encode(["status" => "error", "message" => "标题和截止时间必填"]);
+        return;
+    }
+
+    $stopTime = strtotime($stopTimeStr);
+
+    try {
+        $stmt = $db->prepare("INSERT INTO homework (teacherid, title, description, stoptime, isforallstudents, submit, releasetime) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$teacher['Id'], $title, $description, $stopTime, $isForAll, $submit, time()]);
+        echo json_encode(["status" => "success", "message" => "作业布置成功"]);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+    }
+}
+
+/**
+ * 更新作业
+ */
+function handleUpdate($input)
+{
+    global $db;
+    require_teacher_auth();
+
+    $id = $input['id'] ?? null;
+    $title = $input['title'] ?? '';
+    $description = $input['description'] ?? '';
+    $stopTimeStr = $input['stopTime'] ?? '';
+
+    if (!$id || !$title || !$stopTimeStr) {
+        echo json_encode(["status" => "error", "message" => "缺少必要参数"]);
+        return;
+    }
+
+    $stopTime = strtotime($stopTimeStr);
+
+    try {
+        $stmt = $db->prepare("UPDATE homework SET title = ?, description = ?, stoptime = ? WHERE Id = ?");
+        $stmt->execute([$title, $description, $stopTime, $id]);
+        echo json_encode(["status" => "success", "message" => "作业更新成功"]);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+    }
+}
+
+/**
+ * 删除作业
+ */
+function handleDelete($input)
+{
+    global $db;
+    require_teacher_auth();
+
+    $id = $input['id'] ?? null;
+    if (!$id) {
+        echo json_encode(["status" => "error", "message" => "ID 不能为空"]);
+        return;
+    }
+
+    try {
+        $db->beginTransaction();
+        // 删除作业记录
+        $stmt = $db->prepare("DELETE FROM homework WHERE Id = ?");
+        $stmt->execute([$id]);
+        // 删除相关的提交记录
+        $stmt2 = $db->prepare("DELETE FROM homeworksubmission WHERE homeworkid = ?");
+        $stmt2->execute([$id]);
+        $db->commit();
+        echo json_encode(["status" => "success", "message" => "删除成功"]);
+    } catch (PDOException $e) {
+        $db->rollBack();
+        http_response_code(500);
+        echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+    }
+}
+
+/**
+ * 获取某作业的学生提交状态列表
+ */
+function handleSubmissions()
+{
+    global $db;
+    require_teacher_auth();
+
+    $homeworkId = $_GET['homeworkId'] ?? null;
+    if (!$homeworkId) {
+        echo json_encode(["status" => "error", "message" => "缺少作业 ID"]);
+        return;
+    }
+
+    try {
+        // 获取作业标题
+        $hwStmt = $db->prepare("SELECT title FROM homework WHERE Id = ?");
+        $hwStmt->execute([$homeworkId]);
+        $homework = $hwStmt->fetch(PDO::FETCH_ASSOC);
+        $title = $homework ? $homework['title'] : '未知作业';
+
+        // 获取所有学生并关联提交记录
+        // 注意：这里假设是所有学生，如果以后有分组逻辑需要调整
+        $sql = "SELECT s.Id as studentId, s.firstname, s.lastname, 
+                       hs.Id as submissionId, hs.time, hs.updatetime
+                FROM students s
+                LEFT JOIN homeworksubmission hs ON s.Id = hs.studentid AND hs.homeworkid = ?
+                ORDER BY s.Id ASC";
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute([$homeworkId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $data = [];
+        foreach ($rows as $row) {
+            $isSubmitted = !empty($row['submissionId']);
+            $data[] = [
+                'studentId' => $row['studentId'],
+                'fullName' => $row['lastname'] . $row['firstname'],
+                'status' => $isSubmitted ? 'Submitted' : 'Pending',
+                'submissionId' => $row['submissionId'],
+                'time_formatted' => $isSubmitted ? date('Y-m-d H:i', $row['time']) : '-',
+                'updatetime_formatted' => $isSubmitted ? date('Y-m-d H:i', $row['updatetime']) : '-'
+            ];
         }
 
-        // 截止时间转换为 UNIX 时间戳
-        $stopTimestamp = strtotime($stopTime);
-        if ($stopTimestamp === false) {
-            send_json_response(['status' => 'error', 'message' => '截止时间格式无效。'], 400);
-        }
+        echo json_encode(["status" => "success", "data" => $data, "title" => $title]);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+    }
+}
 
-        $releaseTime = time();
+/**
+ * 查看提交详情（图片）
+ */
+function handleViewSubmission()
+{
+    global $db;
+    require_teacher_auth();
 
-        $sql = "INSERT INTO homework (teacherid, isforallstudents, submit, releasetime, stoptime, description, title) 
-                VALUES (?, ?, ?, ?, ?, ?, ?)";
-        try {
-            $stmt = $db->prepare($sql);
-            $stmt->execute([$teacherId, $isforallstudents, $submit, $releaseTime, $stopTimestamp, $description, $title]);
-            send_json_response(['status' => 'success', 'message' => '作业布置成功。', 'id' => $db->lastInsertId()], 201);
-        } catch (\PDOException $e) {
-            send_json_response(['status' => 'error', 'message' => '数据库错误: ' . $e->getMessage()], 500);
-        }
-        break;
+    $submissionId = $_GET['submissionId'] ?? null;
+    if (!$submissionId) {
+        echo json_encode(["status" => "error", "message" => "缺少提交 ID"]);
+        return;
+    }
 
-    // ----------------------------------------------------
-    // 3. 删除作业 (Delete Homework) - POST
-    // ----------------------------------------------------
-    case 'delete':
-        $homeworkId = $input['id'] ?? null;
-        if (!$homeworkId) {
-            send_json_response(['status' => 'error', 'message' => '作业 ID 缺失。'], 400);
-        }
+    try {
+        $stmt = $db->prepare("SELECT submission, updatetime FROM homeworksubmission WHERE Id = ?");
+        $stmt->execute([$submissionId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        try {
-            // 开始事务，确保操作的原子性
-            $db->beginTransaction();
-
-            // 1. 删除相关的提交记录 (homeworksubmission)
-            $stmt_sub = $db->prepare("DELETE FROM homeworksubmission WHERE homeworkid = ?");
-            $stmt_sub->execute([$homeworkId]);
-
-            // 2. 删除作业本身 (homework)，并确保只有该教师才能删除自己的作业
-            $stmt_hw = $db->prepare("DELETE FROM homework WHERE Id = ? AND teacherid = ?");
-            $stmt_hw->execute([$homeworkId, $teacherId]);
-
-            // 提交事务
-            $db->commit();
-
-            if ($stmt_hw->rowCount() > 0) {
-                send_json_response(['status' => 'success', 'message' => '作业及其所有提交记录已成功删除。']);
-            } else {
-                send_json_response(['status' => 'error', 'message' => '删除失败。作业不存在或您无权删除此作业。'], 403);
-            }
-        } catch (\PDOException $e) {
-            // 发生错误时回滚事务
-            $db->rollBack();
-            send_json_response(['status' => 'error', 'message' => '删除作业时发生数据库错误: ' . $e->getMessage()], 500);
-        }
-        break;
-
-    // ----------------------------------------------------
-    // 4. 修改作业内容 (Update Homework) - POST
-    // ----------------------------------------------------
-    case 'update':
-        $homeworkId = $input['id'] ?? null;
-        $title = $input['title'] ?? null;
-        $description = $input['description'] ?? null;
-        $enddate = $input['stopTime'] ?? null;
-
-        if (!$homeworkId || (!$title && !$description && !$enddate)) {
-            send_json_response(['status' => 'error', 'message' => '作业 ID 和至少一个修改内容 (标题或描述) 不能为空。'], 400);
-        }
-
-        $updates = [];
-        $params = [];
-        if ($title) {
-            $updates[] = "title = ?";
-            $params[] = $title;
-        }
-        if ($description) {
-            $updates[] = "description = ?";
-            $params[] = $description;
-        }
-        if ($description) {
-            $updates[] = "description = ?";
-            $params[] = $description;
-        }
-        if ($enddate) {
-            $updates[] = "stoptime = ?";
-            $params[] = strtotime($enddate);
-        }
-
-        $params[] = $homeworkId;
-        $params[] = $teacherId;
-
-        $sql = "UPDATE homework SET " . implode(', ', $updates) . " WHERE Id = ? AND teacherid = ?";
-
-        try {
-            $stmt = $db->prepare($sql);
-            $stmt->execute($params);
-
-            if ($stmt->rowCount() > 0) {
-                send_json_response(['status' => 'success', 'message' => '作业内容已成功更新。']);
-            } else {
-                send_json_response(['status' => 'error', 'message' => '更新失败。作业不存在、您无权修改或内容无变化。'], 403);
-            }
-        } catch (\PDOException $e) {
-            send_json_response(['status' => 'error', 'message' => '数据库错误: ' . $e->getMessage()], 500);
-        }
-        break;
-
-    // ----------------------------------------------------
-    // 5. 查看作业列表 (List Homework) - GET
-    // ----------------------------------------------------
-    case 'list':
-        $sql = "SELECT Id, title, description, releasetime, stoptime, isforallstudents, submit 
-                FROM homework 
-                WHERE teacherid = ?
-                ORDER BY releasetime DESC";
-
-        try {
-            $stmt = $db->prepare($sql);
-            $stmt->execute([$teacherId]);
-            $homeworkList = $stmt->fetchAll();
-
-            // 格式化时间戳
-            foreach ($homeworkList as &$hw) {
-                $hw['releasetime_formatted'] = date('Y-m-d H:i:s', $hw['releasetime']);
-                $hw['stoptime_formatted'] = date('Y-m-d H:i:s', $hw['stoptime']);
-                // 检查是否逾期
-                $hw['isExpired'] = $hw['stoptime'] < time();
-            }
-
-            send_json_response(['status' => 'success', 'data' => $homeworkList]);
-        } catch (\PDOException $e) {
-            send_json_response(['status' => 'error', 'message' => '数据库错误: ' . $e->getMessage()], 500);
-        }
-        break;
-
-    // ----------------------------------------------------
-    // 6. 查看提交状态 (List Submissions) - GET
-    //    包含已提交和未提交名单
-    // ----------------------------------------------------
-    case 'submissions':
-        $homeworkId = $_GET['homeworkId'] ?? null;
-        if (!$homeworkId) {
-            send_json_response(['status' => 'error', 'message' => '作业 ID 缺失。'], 400);
-        }
-
-        // 确保该作业存在且属于当前教师
-        $stmt_check = $db->prepare("SELECT Id, title, submit FROM homework WHERE Id = ? AND teacherid = ?");
-        $stmt_check->execute([$homeworkId, $teacherId]);
-        $homework = $stmt_check->fetch();
-
-        if (!$homework) {
-            send_json_response(['status' => 'error', 'message' => '作业不存在或您无权查看。'], 403);
-        }
-
-        // 仅当 submit=1 时才检查提交记录
-        if ($homework['submit'] != 1) {
-            send_json_response(['status' => 'warning', 'message' => '此作业不要求平台提交。', 'data' => []]);
-        }
-
-        try {
-            // 1. 获取所有学生 (简单起见，假设所有学生都应提交)
-            // 在实际应用中，这里可能需要根据教师教授的班级来筛选学生
-            $stmt_all_students = $db->prepare("SELECT Id, firstname, lastname FROM students ORDER BY Id ASC");
-            $stmt_all_students->execute();
-            // FIX: 使用 FETCH_ASSOC 而非 FETCH_KEY_PAIR，因为我们选取了 3 个字段
-            $allStudents = $stmt_all_students->fetchAll(PDO::FETCH_ASSOC);
-
-            // 格式化学生成为 Id => fullName
-            $studentsMap = [];
-            foreach ($allStudents as $student) {
-                $studentId = $student['Id'];
-                // 使用辅助函数格式化名称 (假设 database.php 引入了 format_names)
-                $studentsMap[$studentId] = $student['lastname'] . $student['firstname'];
-            }
-            // ----------------------------------------------------
-
-            // 2. 获取已提交的记录
-            $sql_submissions = "SELECT Id, studentid, time, updatetime 
-                                FROM homeworksubmission 
-                                WHERE homeworkid = ?
-                                ORDER BY updatetime DESC";
-
-            $stmt_submissions = $db->prepare($sql_submissions);
-            $stmt_submissions->execute([$homeworkId]);
-            $submissions = $stmt_submissions->fetchAll();
-
-            $submittedStudentIds = array_column($submissions, 'studentid');
-            $submittedStudentIds = array_map('strval', $submittedStudentIds); // 确保类型一致
-
-            $submissionData = [];
-            $notSubmitted = $studentsMap; // 初始设定所有学生都未提交
-
-            // 整理已提交的数据
-            foreach ($submissions as $sub) {
-                $studentId = $sub['studentid'];
-                // 确保学生存在于名单中
-                if (isset($studentsMap[$studentId])) {
-                    $submissionData[] = [
-                        'submissionId' => $sub['Id'],
-                        'studentId' => $studentId,
-                        'fullName' => $studentsMap[$studentId],
-                        'status' => 'Submitted',
-                        'time_formatted' => date('Y-m-d H:i:s', $sub['time']),
-                        'updatetime_formatted' => date('Y-m-d H:i:s', $sub['updatetime']),
-                    ];
-                    // 从未提交名单中移除
-                    unset($notSubmitted[$studentId]);
-                }
-            }
-
-            // 整理未提交的数据
-            foreach ($notSubmitted as $studentId => $fullName) {
-                $submissionData[] = [
-                    'submissionId' => null, // 无提交ID
-                    'studentId' => $studentId,
-                    'fullName' => $fullName,
-                    'status' => 'Not Submitted',
-                    'time_formatted' => '-',
-                    'updatetime_formatted' => '-',
-                ];
-            }
-
-            // 按学生ID排序 (可选)
-            usort($submissionData, function ($a, $b) {
-                return $a['studentId'] <=> $b['studentId'];
-            });
-
-            send_json_response([
-                'status' => 'success',
-                'title' => $homework['title'],
-                'message' => '已成功获取所有学生的提交状态。',
-                'data' => $submissionData
+        if ($row) {
+            echo json_encode([
+                "status" => "success",
+                "image" => base64_encode($row['submission']), // 转为 Base64 给前端
+                "updateTime" => date('Y-m-d H:i:s', $row['updatetime'])
             ]);
-        } catch (\PDOException $e) {
-            send_json_response(['status' => 'error', 'message' => '数据库错误: ' . $e->getMessage()], 500);
+        } else {
+            echo json_encode(["status" => "error", "message" => "找不到记录"]);
         }
-        break;
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+    }
+}
 
-    // ----------------------------------------------------
-    // 7. 查看学生提交的作业 (View Submission Content) - GET
-    // ----------------------------------------------------
-    case 'view_submission':
-        $submissionId = $_GET['submissionId'] ?? null;
-        if (!$submissionId) {
-            send_json_response(['status' => 'error', 'message' => '提交 ID 缺失。'], 400);
-        }
+/**
+ * 【新功能】手动设置提交状态
+ */
+function handleSetStatus($input)
+{
+    global $db;
+    require_teacher_auth();
 
-        // 获取提交记录并确认该作业属于当前教师
-        $sql = "SELECT hs.submission, hs.studentid, hs.updatetime, h.title, s.firstname, s.lastname
-                FROM homeworksubmission hs
-                JOIN homework h ON hs.homeworkid = h.Id
-                LEFT JOIN students s ON hs.studentid = s.Id
-                WHERE hs.Id = ? AND h.teacherid = ?";
+    $studentId = $input['studentId'] ?? null;
+    $homeworkId = $input['homeworkId'] ?? null;
+    $status = $input['status'] ?? null; // 'submitted' or 'unsubmitted'
 
-        try {
-            $stmt = $db->prepare($sql);
-            $stmt->execute([$submissionId, $teacherId]);
-            $submission = $stmt->fetch();
+    if (!$studentId || !$homeworkId || !$status) {
+        echo json_encode(["status" => "error", "message" => "参数不完整"]);
+        return;
+    }
 
-            if (!$submission) {
-                send_json_response(['status' => 'error', 'message' => '提交记录不存在或您无权查看。'], 403);
+    try {
+        if ($status === 'unsubmitted') {
+            // 设为未提交：删除记录
+            $stmt = $db->prepare("DELETE FROM homeworksubmission WHERE studentid = ? AND homeworkid = ?");
+            $stmt->execute([$studentId, $homeworkId]);
+            $msg = "已设为未提交";
+        } else {
+            // 设为已提交：插入空记录（如果不存在）
+            // 先检查是否存在
+            $check = $db->prepare("SELECT Id FROM homeworksubmission WHERE studentid = ? AND homeworkid = ?");
+            $check->execute([$studentId, $homeworkId]);
+            if ($check->rowCount() > 0) {
+                echo json_encode(["status" => "warning", "message" => "该学生已是提交状态"]);
+                return;
             }
 
-            // 将 BLOB (图片二进制数据) 编码为 Base64 字符串
-            $base64Image = base64_encode($submission['submission']);
-            $fullName = $submission['lastname'] . $submission['firstname'];
-
-            send_json_response([
-                'status' => 'success',
-                'image' => $base64Image,
-                'title' => $submission['title'],
-                'studentId' => $submission['studentid'],
-                'fullName' => $fullName,
-                'updateTime' => date('Y-m-d H:i:s', $submission['updatetime']),
-                'message' => '已获取作业提交内容。'
-            ]);
-        } catch (\PDOException $e) {
-            send_json_response(['status' => 'error', 'message' => '数据库错误: ' . $e->getMessage()], 500);
+            $now = time();
+            // 插入空内容的提交。submission 字段是 blob，插入空字符串即可
+            $stmt = $db->prepare("INSERT INTO homeworksubmission (studentid, homeworkid, submission, time, updatetime) VALUES (?, ?, '', ?, ?)");
+            $stmt->execute([$studentId, $homeworkId, $now, $now]);
+            $msg = "已设为已提交 (手动)";
         }
-        break;
 
-    // ----------------------------------------------------
-    // 8. 预设/错误处理
-    // ----------------------------------------------------
-    default:
-        send_json_response(['status' => 'error', 'message' => '无效的 API 动作。'], 400);
-        break;
+        echo json_encode(["status" => "success", "message" => $msg]);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(["status" => "error", "message" => $e->getMessage()]);
+    }
 }
