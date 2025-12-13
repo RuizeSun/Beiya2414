@@ -2,13 +2,19 @@
 <html lang="zh-CN">
 	<head>
 		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, maximum-scale=1, minimum-scale=1" />
 		<title>班级管理面板</title>
 		<!-- 载入 Tailwind CSS -->
 		<script src="https://cdn.tailwindcss.com"></script>
 		<!-- 载入 Inter 字体 -->
 		<style>
+			html {
+				touch-action: none; /* 禁止双击放大 */
+				-ms-text-size-adjust: 100%; /* IE10 以下禁止用户调整文本大小 */
+				-moz-text-size-adjust: 100%; /* 火狐浏览器禁止用户调整文本大小 */
+				-webkit-text-size-adjust: 100%; /* Safari 和 Chrome 禁止用户调整文本大小 */
+				zoom: 1; /* 禁止用户缩放 */
+			}
 			body {
 				background-color: #f7f9fc; /* 浅灰色背景 */
 			}
@@ -46,7 +52,7 @@
 			</div>
 		</div>
 		<!-- 主面板容器 -->
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 			<!-- 标题区块 -->
 			<header class="mb-6 border-b pb-4">
 				<h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">班级大屏</h1>
