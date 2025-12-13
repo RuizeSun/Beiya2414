@@ -186,7 +186,7 @@
 			document.addEventListener("DOMContentLoaded", () => {
 				showTab("dashboard");
 				// 1. 初始 Cookie 检查
-				if (Cookies.get("token") === undefined) {
+				if (Cookies.get("screen_token") === undefined) {
 					window.location.href = LOGIN_URL;
 					return; // 立即退出，避免执行后续逻辑
 				}
