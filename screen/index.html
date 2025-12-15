@@ -4,10 +4,11 @@
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, maximum-scale=1, minimum-scale=1" />
 		<title>班级管理面板</title>
-		<!-- 载入 Tailwind CSS -->
-		<script src="https://cdn.tailwindcss.com"></script>
-		<!-- 载入 Inter 字体 -->
+		<!-- 载入 Bootstrap 5 CSS -->
+		<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+
 		<style>
+			/* --- 保留原有的触控与缩放限制 --- */
 			html {
 				touch-action: none; /* 禁止双击放大 */
 				-ms-text-size-adjust: 100%; /* IE10 以下禁止用户调整文本大小 */
@@ -15,198 +16,243 @@
 				-webkit-text-size-adjust: 100%; /* Safari 和 Chrome 禁止用户调整文本大小 */
 				zoom: 1; /* 禁止用户缩放 */
 			}
+
+			/* --- 自定义样式 --- */
 			body {
-				background-color: #f7f9fc; /* 浅灰色背景 */
+				background-color: #f8f9fa;
+			}
+
+			/* --- 动画样式 --- */
+			/* 基础 Tab 状态：隐藏且透明 */
+			.tab-pane-fade {
+				display: none;
+				opacity: 0;
+				transition: opacity 0.1s ease-in-out; /* 0.1秒渐变动画 */
+			}
+			/* 显示状态：占据空间 (block) */
+			.tab-pane-fade.active-block {
+				display: block;
+			}
+			/* 可见状态：完全不透明 (opacity 1) */
+			.tab-pane-fade.show {
+				opacity: 1;
+			}
+
+			/* 修正 Accordion 内 list-group 的圆角问题 */
+			.accordion-body .list-group-item:first-child {
+				border-top-left-radius: 0;
+				border-top-right-radius: 0;
+			}
+			.accordion-body .list-group-item:last-child {
+				border-bottom-left-radius: 0;
+				border-bottom-right-radius: 0;
 			}
 			/* 确保 iframe 在内容区块中能完全填满 */
-			.tab-content iframe {
+			iframe {
 				width: 100%;
 				border: none;
-				height: 80vh;
+				/* 设置一个响应式高度，确保内容可见 */
+				height: calc(100vh - 200px);
+				min-height: 500px;
 			}
 		</style>
-		<script>
-			tailwind.config = {
-				theme: {
-					extend: {
-						colors: {
-							primary: "#4f46e5", // Indigo-600
-							"primary-dark": "#4338ca", // Indigo-700
-							secondary: "#10b981", // Emerald-500
-						},
-					},
-				},
-			};
-		</script>
 	</head>
-	<body class="min-h-screen">
-		<!-- 会话过期提示模态框 (Modal) -->
-		<!-- 核心功能：用于替代 alert() 提示用户会话过期，并引导用户重新登录。 -->
-		<div id="session-modal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-75 transition-opacity duration-300 ease-out flex items-center justify-center">
-			<!-- 模态框内容 -->
-			<div class="bg-white rounded-xl shadow-2xl w-full max-w-sm m-4 p-6 transform transition-all duration-300 ease-out scale-100">
-				<h3 class="text-xl font-bold text-red-600 mb-4 border-b pb-2">会话过期通知</h3>
-				<p class="text-gray-700 mb-6">登录已过期，请重新登录！</p>
-				<!-- 点击按钮触发重定向 -->
-				<button id="modal-confirm-btn" class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2 rounded-lg transition-colors shadow-md hover:shadow-lg">了解</button>
+	<body class="min-vh-100 d-flex flex-column">
+		<!-- 会话过期提示模态框 (Bootstrap Modal) -->
+		<div class="modal fade" id="session-modal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="sessionModalLabel" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered">
+				<div class="modal-content">
+					<div class="modal-header border-bottom-0 pb-0">
+						<h5 class="modal-title text-danger fw-bold" id="sessionModalLabel">会话过期通知</h5>
+					</div>
+					<div class="modal-body text-secondary">
+						<p>登录已过期，请重新登录！</p>
+					</div>
+					<div class="modal-footer border-top-0 pt-0">
+						<button id="modal-confirm-btn" type="button" class="btn btn-primary w-100">了解</button>
+					</div>
+				</div>
 			</div>
 		</div>
+
 		<!-- 主面板容器 -->
-		<div class="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="container py-4">
 			<!-- 标题区块 -->
-			<header class="mb-6 border-b pb-4">
-				<h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">班级大屏</h1>
-				<p class="mt-1 text-sm text-gray-500">在此查看今日情况并提交作业。</p>
+			<header class="mb-4 border-bottom pb-3">
+				<h1 class="display-6 fw-bold text-dark">班级大屏</h1>
+				<p class="text-muted mt-1">在此查看今日情况并提交作业。</p>
 			</header>
 
-			<!-- 侧边栏与内容区块的 Flex 布局 -->
-			<!-- 在中等萤幕以上 (md) 启用 Flex 布局 -->
-			<div class="md:flex md:space-x-6">
-				<!-- 侧边栏导航列 (Sidebar) -->
-				<nav class="md:w-64 flex-shrink-0 bg-white rounded-xl shadow-lg p-3 mb-6 md:mb-0">
-					<div class="space-y-2">
-						<!-- 每个按钮都会呼叫 showTab('tab-id') -->
-						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('dashboard')" data-tab="dashboard">仪表盘</button>
-						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('homework')" data-tab="homework">作业提交</button>
-					</div>
-				</nav>
-
-				<!-- 分页内容区块 (Main Content) -->
-				<div class="flex-1">
-					<div class="bg-white p-0 sm:p-0 rounded-xl shadow-lg border-t border-gray-200 min-h-[75vh]">
-						<!-- 1. 仪表板内容 (保持模拟内容) -->
-						<div id="dashboard" class="tab-content hidden">
-							<h2 class="text-2xl font-bold text-primary mb-4">仪表盘</h2>
-							<div class="p-6 bg-indigo-50 border border-indigo-200 rounded-xl">
-								<p class="text-lg font-medium text-indigo-800">欢迎来到管理员仪表盘！</p>
-								<p class="mt-2 text-indigo-700">此处应显示班级的关键数据摘要，例如活跃学生数、最近的评分活动和系统健康状态。</p>
+			<!-- 栅格布局 -->
+			<div class="row g-4">
+				<!-- 侧边栏导航 (Accordion Sidebar) -->
+				<div class="col-md-3">
+					<!-- 使用 Accordion 组件 -->
+					<div class="accordion shadow-sm sticky-top" id="sidebarAccordion" style="top: 20px; z-index: 100">
+						<!-- 分组 1: 概览 -->
+						<div class="accordion-item">
+							<h2 class="accordion-header" id="headingOne">
+								<button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">概览</button>
+							</h2>
+							<div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne" data-bs-parent="#sidebarAccordion">
+								<div class="accordion-body p-0">
+									<div class="list-group list-group-flush">
+										<button class="list-group-item list-group-item-action py-3 border-0 active" onclick="showTab('dashboard')" data-tab="dashboard">仪表盘</button>
+									</div>
+								</div>
 							</div>
 						</div>
 
-						<!-- 2. 学生管理内容 (替换回 iframe) -->
-						<div id="homework" class="tab-content hidden">
-							<iframe src="/screen/homework.html" id="homework-iframe"></iframe>
+						<!-- 分组 2: 功能 -->
+						<div class="accordion-item">
+							<h2 class="accordion-header" id="headingTwo">
+								<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">功能</button>
+							</h2>
+							<div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#sidebarAccordion">
+								<div class="accordion-body p-0">
+									<div class="list-group list-group-flush">
+										<button class="list-group-item list-group-item-action py-3 border-0" onclick="showTab('homework')" data-tab="homework">作业提交</button>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- 内容区块 (Main Content) -->
+				<div class="col-md-9">
+					<div class="card shadow border-0 min-vh-75">
+						<div class="card-body p-0">
+							<!-- 1. 仪表板内容 (注意：移除了 bootstrap 原生 tab-pane 类，使用自定义 tab-pane-fade 以控制动画) -->
+							<div id="dashboard" class="tab-pane-fade active-block show p-4">
+								<h2 class="h3 fw-bold text-primary mb-3">仪表盘</h2>
+								<div class="alert alert-primary border-0 bg-opacity-10" role="alert">
+									<h4 class="alert-heading h5 fw-bold">欢迎来到管理员仪表盘！</h4>
+									<p class="mb-0">此处应显示班级的关键数据摘要，例如活跃学生数、最近的评分活动和系统健康状态。</p>
+								</div>
+							</div>
+
+							<!-- 2. 作业提交内容 (iframe) -->
+							<div id="homework" class="tab-pane-fade">
+								<iframe src="/screen/homework.html" id="homework-iframe"></iframe>
+							</div>
 						</div>
 					</div>
 				</div>
 			</div>
 		</div>
+
+		<!-- 载入 Bootstrap 5 JS Bundle -->
+		<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+		<!-- 载入 Cookies 库 -->
+		<script src="https://cdn.jsdelivr.net/npm/js-cookie@2/src/js.cookie.min.js"></script>
+
 		<script>
 			const CHECK_INTERVAL = 10000;
 			const SESSION_CHECK_URL = "/system/screen-profile.php";
 			const LOGIN_URL = "/screen/login.html";
-			let sessionInterval; // 用于存储 setInterval 的 ID
+			let sessionInterval;
+			let isAnimating = false; // 防止快速点击导致动画冲突
 
-			// --- 模态框处理函数 ---
-			// 显示会话过期模态框
+			// --- 模态框处理 ---
 			function showSessionExpiredModal() {
-				const modal = document.getElementById("session-modal");
-				// 确保移除 hidden 并添加 flex 以显示模态框
-				modal.classList.remove("hidden");
-				modal.classList.add("flex");
+				const modalElement = document.getElementById("session-modal");
+				const modal = new bootstrap.Modal(modalElement);
+				modal.show();
 			}
 
-			// 处理模态框确认点击（并重定向）
 			function handleModalConfirm() {
-				// 停止心跳检查
 				clearInterval(sessionInterval);
-				// 重定向到登录页面
 				window.location.href = LOGIN_URL;
 			}
-			// JavaScript 函数：切换分页内容
+
+			// --- 核心：切换分页内容 (带 0.1s 动画) ---
 			function showTab(tabId) {
-				// 隐藏所有内容区块
-				document.querySelectorAll(".tab-content").forEach((content) => {
-					content.classList.add("hidden");
-					content.classList.remove("block");
-				});
+				// 如果正在动画中或点击的是当前已显示的 Tab，则忽略
+				const targetContent = document.getElementById(tabId);
+				if (isAnimating || (targetContent && targetContent.classList.contains("show"))) return;
 
-				// 移除所有按钮的 active 样式 (针对侧边栏设计)
-				document.querySelectorAll(".tab-button").forEach((button) => {
-					button.classList.remove("bg-primary-dark/10", "text-primary-dark", "font-semibold", "border-l-4", "border-primary-dark");
-					button.classList.add("text-gray-600", "hover:text-primary-dark", "hover:bg-gray-100");
+				// 1. 更新侧边栏按钮状态
+				document.querySelectorAll(".list-group-item").forEach((btn) => {
+					btn.classList.remove("active");
 				});
-
-				// 显示选定的内容区块
-				const selectedContent = document.getElementById(tabId);
-				if (selectedContent) {
-					selectedContent.classList.remove("hidden");
-					selectedContent.classList.add("block");
+				const selectedButton = document.querySelector(`.list-group-item[data-tab='${tabId}']`);
+				if (selectedButton) {
+					selectedButton.classList.add("active");
 				}
 
-				// 为选定的按钮添加 active 样式
-				const selectedButton = document.querySelector(`.tab-button[data-tab='${tabId}']`);
-				if (selectedButton) {
-					selectedButton.classList.add("bg-primary-dark/10", "text-primary-dark", "font-semibold", "border-l-4", "border-primary-dark");
-					selectedButton.classList.remove("text-gray-600", "hover:text-primary-dark", "hover:bg-gray-100");
+				// 2. 动画切换逻辑
+				const currentContent = document.querySelector(".tab-pane-fade.show");
+
+				if (currentContent) {
+					isAnimating = true;
+
+					// 第一步：淡出 (Opacity -> 0)
+					currentContent.classList.remove("show");
+
+					// 等待 0.1s 动画结束
+					setTimeout(() => {
+						// 第二步：隐藏旧元素 (display: none)
+						currentContent.classList.remove("active-block");
+
+						if (targetContent) {
+							// 第三步：显示新元素 (display: block)，此时 opacity 仍为 0
+							targetContent.classList.add("active-block");
+
+							// 强制浏览器重排 (Reflow)，确保 opacity transition 生效
+							void targetContent.offsetWidth;
+
+							// 第四步：淡入 (Opacity -> 1)
+							targetContent.classList.add("show");
+						}
+
+						// 动画结束，解锁
+						// 稍微多给一点时间缓冲，防止边缘情况
+						setTimeout(() => {
+							isAnimating = false;
+						}, 100);
+					}, 100); // 这里的 100ms 对应 CSS 中的 transition 0.1s
+				} else {
+					// 如果没有当前显示的内容（页面初始化），直接显示
+					if (targetContent) {
+						targetContent.classList.add("active-block", "show");
+					}
 				}
 			}
 
-			/**
-			 * 尝试向服务器发送一次请求以检查会话状态。
-			 * @returns {Promise<boolean>} 如果状态码是 200 或 500，返回 true (成功)，否则返回 false (失败)。
-			 */
+			// --- 会话检查逻辑 ---
 			async function attemptSessionCheck() {
 				try {
-					// 使用 no-store 确保不使用缓存
 					const response = await fetch(SESSION_CHECK_URL, { method: "GET", cache: "no-store" });
-
-					// 按照要求，如果状态码是 200 或 500，则认为会话有效
-					if (response.status === 200 || response.status === 500) {
-						return true; // 检查成功
-					} else {
-						// 状态码非 200 且非 500 (如 401, 403)
-						return false; // 检查失败
-					}
+					if (response.status === 200 || response.status === 500) return true;
+					else return false;
 				} catch (error) {
-					// 网络错误 (如无法连接到服务器)
-					return false; // 检查失败
+					return false;
 				}
 			}
 
-			// 主会话检查函数，包含重试逻辑
 			async function checkSession() {
-				// 第一次尝试
 				const firstAttemptSuccess = await attemptSessionCheck();
-
-				if (firstAttemptSuccess) {
-					return; // 会话有效，退出
-				}
-
-				// 第一次尝试失败，等待 1 秒后进行重试
+				if (firstAttemptSuccess) return;
 				await new Promise((resolve) => setTimeout(resolve, 1000));
-
-				// 第二次尝试
 				const secondAttemptSuccess = await attemptSessionCheck();
-
-				if (secondAttemptSuccess) {
-					return; // 重试后成功，退出
-				}
-
-				// 两次尝试均失败，判定为登录过期
-				clearInterval(sessionInterval); // 停止定时器
-				showSessionExpiredModal(); // 显示模态框
+				if (secondAttemptSuccess) return;
+				clearInterval(sessionInterval);
+				showSessionExpiredModal();
 			}
 
-			// 页面载入完成后，预设显示第一个分页
 			document.addEventListener("DOMContentLoaded", () => {
-				showTab("dashboard");
-				// 1. 初始 Cookie 检查
+				// 初始 Cookie 检查
 				if (Cookies.get("screen_token") === undefined) {
 					window.location.href = LOGIN_URL;
-					return; // 立即退出，避免执行后续逻辑
+					return;
 				}
-
-				// 3. 启动会话心跳检查
-				// 立即执行一次，然后每隔 30 秒执行一次
+				// 启动会话检查
 				checkSession();
 				sessionInterval = setInterval(checkSession, CHECK_INTERVAL);
-
-				// 4. 为模态框按钮添加事件监听器
+				// 绑定模态框按钮
 				document.getElementById("modal-confirm-btn").addEventListener("click", handleModalConfirm);
 			});
 		</script>
-		<!-- 载入 Cookies 库 -->
-		<script src="https://cdn.jsdelivr.net/npm/js-cookie@2/src/js.cookie.min.js"></script>
 	</body>
 </html>

@@ -2,251 +2,322 @@
 <html lang="zh-CN">
 	<head>
 		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, maximum-scale=1, minimum-scale=1" />
 		<title>班级管理面板（管理员）</title>
-		<!-- 载入 Tailwind CSS -->
-		<script src="https://cdn.tailwindcss.com"></script>
+		<!-- 载入 Bootstrap 5 CSS -->
+		<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+		<!-- 载入 Bootstrap Icons -->
+		<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
 
 		<style>
-			/* 确保 body 使用 Inter 字体 */
-			body {
-				font-family: "Inter", sans-serif;
-				background-color: #f7f9fc; /* 浅灰色背景 */
+			/* --- 触控与缩放限制 (保持一致) --- */
+			html {
+				touch-action: none;
+				-ms-text-size-adjust: 100%;
+				-moz-text-size-adjust: 100%;
+				-webkit-text-size-adjust: 100%;
+				zoom: 1;
 			}
-			/* 确保 iframe 在内容区块中能完全填满 */
-			.tab-content iframe {
+
+			/* --- 自定义样式 --- */
+			body {
+				background-color: #f8f9fa;
+				font-family: "Inter", sans-serif;
+			}
+
+			/* --- 动画样式 (复用 index.html 逻辑) --- */
+			.tab-pane-fade {
+				display: none;
+				opacity: 0;
+				transition: opacity 0.1s ease-in-out;
+			}
+			.tab-pane-fade.active-block {
+				display: block;
+			}
+			.tab-pane-fade.show {
+				opacity: 1;
+			}
+
+			/* 修正 Accordion 圆角 */
+			.accordion-body .list-group-item:first-child {
+				border-top-left-radius: 0;
+				border-top-right-radius: 0;
+			}
+			.accordion-body .list-group-item:last-child {
+				border-bottom-left-radius: 0;
+				border-bottom-right-radius: 0;
+			}
+
+			/* iframe 样式 */
+			iframe {
 				width: 100%;
 				border: none;
-				/* 设置一个响应式高度，确保内容可见 */
-				height: calc(100vh - 180px);
+				height: calc(100vh - 200px);
 				min-height: 500px;
 			}
 		</style>
-
-		<script>
-			tailwind.config = {
-				theme: {
-					extend: {
-						colors: {
-							primary: "#4f46e5", // Indigo-600
-							"primary-dark": "#4338ca", // Indigo-700
-							secondary: "#10b981", // Emerald-500
-						},
-					},
-				},
-			};
-
-			// JavaScript 函数：切换分页内容
-			function showTab(tabId) {
-				// 隐藏所有内容区块
-				document.querySelectorAll(".tab-content").forEach((content) => {
-					content.classList.add("hidden");
-					content.classList.remove("block");
-				});
-
-				// 移除所有按钮的 active 样式 (针对侧边栏设计)
-				document.querySelectorAll(".tab-button").forEach((button) => {
-					button.classList.remove("bg-primary-dark/10", "text-primary-dark", "font-semibold", "border-l-4", "border-primary-dark");
-					button.classList.add("text-gray-600", "hover:text-primary-dark", "hover:bg-gray-100");
-				});
-
-				// 显示选定的内容区块
-				const selectedContent = document.getElementById(tabId);
-				if (selectedContent) {
-					selectedContent.classList.remove("hidden");
-					selectedContent.classList.add("block");
-				}
-
-				// 为选定的按钮添加 active 样式
-				const selectedButton = document.querySelector(`.tab-button[data-tab='${tabId}']`);
-				if (selectedButton) {
-					selectedButton.classList.add("bg-primary-dark/10", "text-primary-dark", "font-semibold", "border-l-4", "border-primary-dark");
-					selectedButton.classList.remove("text-gray-600", "hover:text-primary-dark", "hover:bg-gray-100");
-				}
-			}
-
-			// 注意：这里仅保留 showTab 函数，其他的逻辑被移至底部的 DOMContentLoaded 监听器中
-		</script>
 	</head>
-	<body class="min-h-screen">
-		<!-- 会话过期提示模态框 (Modal) -->
-		<!-- 核心功能：用于替代 alert() 提示用户会话过期，并引导用户重新登录。 -->
-		<div id="session-modal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-75 transition-opacity duration-300 ease-out flex items-center justify-center">
-			<!-- 模态框内容 -->
-			<div class="bg-white rounded-xl shadow-2xl w-full max-w-sm m-4 p-6 transform transition-all duration-300 ease-out scale-100">
-				<h3 class="text-xl font-bold text-red-600 mb-4 border-b pb-2">会话过期通知</h3>
-				<p class="text-gray-700 mb-6">登录已过期，请重新登录！</p>
-				<!-- 点击按钮触发重定向 -->
-				<button id="modal-confirm-btn" class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-2 rounded-lg transition-colors shadow-md hover:shadow-lg">了解</button>
+	<body class="min-vh-100 d-flex flex-column">
+		<!-- 会话过期提示模态框 (Bootstrap Modal) -->
+		<div class="modal fade" id="session-modal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="sessionModalLabel" aria-hidden="true">
+			<div class="modal-dialog modal-dialog-centered">
+				<div class="modal-content">
+					<div class="modal-header border-bottom-0 pb-0">
+						<h5 class="modal-title text-danger fw-bold" id="sessionModalLabel">会话过期通知</h5>
+					</div>
+					<div class="modal-body text-secondary">
+						<p>登录已过期，请重新登录！</p>
+					</div>
+					<div class="modal-footer border-top-0 pt-0">
+						<button id="modal-confirm-btn" type="button" class="btn btn-primary w-100">了解</button>
+					</div>
+				</div>
 			</div>
 		</div>
 
 		<!-- 主面板容器 -->
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+		<div class="container py-4">
 			<!-- 标题区块 -->
-			<header class="mb-6 border-b pb-4">
-				<h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">班级平台 管理员面板</h1>
-				<p class="mt-1 text-sm text-gray-500">在此管理班级平台的所有核心数据和功能。</p>
+			<header class="mb-4 border-bottom pb-3">
+				<h1 class="display-6 fw-bold text-dark">班级平台 管理员面板</h1>
+				<p class="text-muted mt-1">在此管理班级平台的所有核心数据和功能。</p>
 			</header>
 
-			<!-- 侧边栏与内容区块的 Flex 布局 -->
-			<div class="md:flex md:space-x-6">
-				<!-- 侧边栏导航列 (Sidebar) -->
-				<nav class="md:w-64 flex-shrink-0 bg-white rounded-xl shadow-lg p-3 mb-6 md:mb-0">
-					<div class="space-y-2">
-						<!-- 每个按钮都会呼叫 showTab('tab-id') -->
-						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out text-gray-600 hover:text-primary-dark hover:bg-gray-100" onclick="location.href='/teacher/index.html'">返回主页</button>
-						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('dashboard')" data-tab="dashboard">仪表盘</button>
-						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('students')" data-tab="students">学生管理</button>
-						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('groups')" data-tab="groups">小组管理</button>
-						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('teachers')" data-tab="teachers">教师管理</button>
-						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('scorechangelog')" data-tab="scorechangelog">量化评分变动记录</button>
-						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('scorechangetype')" data-tab="scorechangetype">量化评分变动类别</button>
-						<button class="tab-button w-full text-left py-3 px-4 text-sm rounded-lg transition-all duration-150 ease-in-out" onclick="showTab('homework-management')" data-tab="homework-management">作业管理</button>
-					</div>
-				</nav>
-
-				<!-- 分页内容区块 (Main Content) -->
-				<div class="flex-1">
-					<div class="bg-white p-0 sm:p-0 rounded-xl shadow-lg border-t border-gray-200 min-h-[75vh]">
-						<!-- 1. 仪表板内容 (保持模拟内容) -->
-						<div id="dashboard" class="tab-content hidden">
-							<h2 class="text-2xl font-bold text-primary mb-4 p-6">仪表盘</h2>
-							<div class="p-6 bg-indigo-50 border border-indigo-200 rounded-xl m-6">
-								<p class="text-lg font-medium text-indigo-800">欢迎来到管理员仪表盘！</p>
-								<p class="mt-2 text-indigo-700">此处应显示班级的关键数据摘要，例如活跃学生数、最近的评分活动和系统健康状态。</p>
+			<!-- 栅格布局 -->
+			<div class="row g-4">
+				<!-- 侧边栏导航 (Accordion Sidebar) -->
+				<div class="col-md-3">
+					<!-- 创建一个 Sticky 包装器，包含“返回主页”和“菜单” -->
+					<div class="sticky-top" style="top: 20px; z-index: 100">
+						<!-- 独立模块：返回主页 -->
+						<div class="card shadow-sm border-0 mb-3">
+							<div class="list-group list-group-flush rounded-3">
+								<button class="list-group-item list-group-item-action py-3 border-0 text-primary fw-bold d-flex align-items-center" onclick="location.href='/teacher/index.html'">
+									<i class="bi bi-arrow-left-circle-fill me-2 fs-5"></i>
+									<span>返回主页</span>
+								</button>
 							</div>
 						</div>
 
-						<!-- 2. 学生管理内容 (替换回 iframe) -->
-						<div id="students" class="tab-content hidden">
-							<iframe src="/teacher/admin-dashboard/students.html" id="students-iframe"></iframe>
-						</div>
+						<!-- 主要功能菜单 (Accordion) -->
+						<div class="accordion shadow-sm" id="sidebarAccordion">
+							<!-- 分组 1: 概览 -->
+							<div class="accordion-item">
+								<h2 class="accordion-header" id="headingOne">
+									<button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">概览</button>
+								</h2>
+								<div id="collapseOne" class="accordion-collapse collapse show" aria-labelledby="headingOne" data-bs-parent="#sidebarAccordion">
+									<div class="accordion-body p-0">
+										<div class="list-group list-group-flush">
+											<!-- 仪表盘 -->
+											<button class="list-group-item list-group-item-action py-3 border-0 active" onclick="showTab('dashboard')" data-tab="dashboard">仪表盘</button>
+										</div>
+									</div>
+								</div>
+							</div>
 
-						<!-- 3. 小组管理内容 (替换回 iframe) -->
-						<div id="groups" class="tab-content hidden">
-							<iframe src="/teacher/admin-dashboard/groups.html" id="groups-iframe"></iframe>
-						</div>
+							<!-- 分组 2: 人员与组织 -->
+							<div class="accordion-item">
+								<h2 class="accordion-header" id="headingTwo">
+									<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">人员管理</button>
+								</h2>
+								<div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#sidebarAccordion">
+									<div class="accordion-body p-0">
+										<div class="list-group list-group-flush">
+											<button class="list-group-item list-group-item-action py-3 border-0" onclick="showTab('students')" data-tab="students">学生管理</button>
+											<button class="list-group-item list-group-item-action py-3 border-0" onclick="showTab('groups')" data-tab="groups">小组管理</button>
+											<button class="list-group-item list-group-item-action py-3 border-0" onclick="showTab('teachers')" data-tab="teachers">教师管理</button>
+										</div>
+									</div>
+								</div>
+							</div>
 
-						<!-- 4. 教师管理内容 (替换回 iframe) -->
-						<div id="teachers" class="tab-content hidden">
-							<iframe src="/teacher/admin-dashboard/teachers.html" id="teachers-iframe"></iframe>
+							<!-- 分组 3: 评分与作业 -->
+							<div class="accordion-item">
+								<h2 class="accordion-header" id="headingThree">
+									<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">教务功能</button>
+								</h2>
+								<div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#sidebarAccordion">
+									<div class="accordion-body p-0">
+										<div class="list-group list-group-flush">
+											<button class="list-group-item list-group-item-action py-3 border-0" onclick="showTab('scorechangelog')" data-tab="scorechangelog">量化评分变动记录</button>
+											<button class="list-group-item list-group-item-action py-3 border-0" onclick="showTab('scorechangetype')" data-tab="scorechangetype">量化评分变动类别</button>
+											<button class="list-group-item list-group-item-action py-3 border-0" onclick="showTab('homework-management')" data-tab="homework-management">作业管理</button>
+										</div>
+									</div>
+								</div>
+							</div>
 						</div>
+					</div>
+				</div>
 
-						<!-- 5. 量化评分变动记录内容 (替换回 iframe) -->
-						<div id="scorechangelog" class="tab-content hidden">
-							<iframe src="/teacher/admin-dashboard/scorechangelog.html" id="scorechangelog-iframe"></iframe>
-						</div>
-						<!-- 6. 量化评分变动类别内容 (替换回 iframe) -->
-						<div id="scorechangetype" class="tab-content hidden">
-							<iframe src="/teacher/admin-dashboard/scorechangetype.html" id="scorechangetype-iframe"></iframe>
-						</div>
-						<!-- 7. 作业 -->
-						<div id="homework-management" class="tab-content hidden">
-							<iframe src="/teacher/admin-dashboard/homework.html" id="homework-management-iframe"></iframe>
+				<!-- 内容区块 (Main Content) -->
+				<div class="col-md-9">
+					<div class="card shadow border-0 min-vh-75">
+						<div class="card-body p-0">
+							<!-- 1. 仪表盘内容 -->
+							<div id="dashboard" class="tab-pane-fade active-block show p-4">
+								<h2 class="h3 fw-bold text-primary mb-3">仪表盘</h2>
+								<div class="alert alert-primary border-0 bg-opacity-10" role="alert">
+									<h4 class="alert-heading h5 fw-bold">欢迎来到管理员仪表盘！</h4>
+									<p class="mb-0">此处应显示班级的关键数据摘要，例如活跃学生数、最近的评分活动和系统健康状态。</p>
+								</div>
+							</div>
+
+							<!-- 2. 学生管理内容 -->
+							<div id="students" class="tab-pane-fade">
+								<iframe src="/teacher/admin-dashboard/students.html" id="students-iframe"></iframe>
+							</div>
+
+							<!-- 3. 小组管理内容 -->
+							<div id="groups" class="tab-pane-fade">
+								<iframe src="/teacher/admin-dashboard/groups.html" id="groups-iframe"></iframe>
+							</div>
+
+							<!-- 4. 教师管理内容 -->
+							<div id="teachers" class="tab-pane-fade">
+								<iframe src="/teacher/admin-dashboard/teachers.html" id="teachers-iframe"></iframe>
+							</div>
+
+							<!-- 5. 量化评分变动记录内容 -->
+							<div id="scorechangelog" class="tab-pane-fade">
+								<iframe src="/teacher/admin-dashboard/scorechangelog.html" id="scorechangelog-iframe"></iframe>
+							</div>
+
+							<!-- 6. 量化评分变动类别内容 -->
+							<div id="scorechangetype" class="tab-pane-fade">
+								<iframe src="/teacher/admin-dashboard/scorechangetype.html" id="scorechangetype-iframe"></iframe>
+							</div>
+
+							<!-- 7. 作业管理 -->
+							<div id="homework-management" class="tab-pane-fade">
+								<iframe src="/teacher/admin-dashboard/homework.html" id="homework-management-iframe"></iframe>
+							</div>
 						</div>
 					</div>
 				</div>
 			</div>
 		</div>
 
+		<!-- 载入 Bootstrap 5 JS Bundle -->
+		<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 		<!-- 载入 Cookies 库 -->
 		<script src="https://cdn.jsdelivr.net/npm/js-cookie@2/src/js.cookie.min.js"></script>
 
-		<!-- 新增会话检查逻辑 -->
 		<script>
-			// --- 全局常量 ---
-			// 教师和管理员都使用相同的会话检查端点和登录页面
+			// --- 全局配置 (保持管理员端特定的配置) ---
+			const CHECK_INTERVAL = 10000;
+			// 注意：这里保留了管理员/教师端的检查接口
 			const SESSION_CHECK_URL = "/system/teacher-profile.php";
+			// 注意：这里保留了管理员/教师端的登录页
 			const LOGIN_URL = "/teacher/login.html";
-			const CHECK_INTERVAL = 10000; // 30秒
 
-			let sessionInterval; // 用于存储 setInterval 的 ID
+			let sessionInterval;
+			let isAnimating = false;
 
-			// --- 模态框处理函数 ---
-			// 显示会话过期模态框
+			// --- 模态框处理 (Bootstrap 方式) ---
 			function showSessionExpiredModal() {
-				const modal = document.getElementById("session-modal");
-				// 确保移除 hidden 并添加 flex 以显示模态框
-				modal.classList.remove("hidden");
-				modal.classList.add("flex");
+				const modalElement = document.getElementById("session-modal");
+				const modal = new bootstrap.Modal(modalElement);
+				modal.show();
 			}
 
-			// 处理模态框确认点击（并重定向）
 			function handleModalConfirm() {
-				// 停止心跳检查
 				clearInterval(sessionInterval);
-				// 重定向到登录页面
 				window.location.href = LOGIN_URL;
 			}
 
-			// --- 会话检查逻辑 ---
+			// --- 核心：切换分页内容 (带 0.1s 动画，与 index.html 一致) ---
+			function showTab(tabId) {
+				const targetContent = document.getElementById(tabId);
+				// 如果正在动画中或点击的是当前已显示的 Tab，则忽略
+				if (isAnimating || (targetContent && targetContent.classList.contains("show"))) return;
 
-			/**
-			 * 尝试向服务器发送一次请求以检查会话状态。
-			 * @returns {Promise<boolean>} 如果状态码是 200 或 500，返回 true (成功)，否则返回 false (失败)。
-			 */
+				// 1. 更新侧边栏按钮状态 (移除旧的 active，添加新的 active)
+				document.querySelectorAll(".list-group-item").forEach((btn) => {
+					btn.classList.remove("active");
+				});
+				// 查找并激活对应的按钮（如果存在）
+				const selectedButton = document.querySelector(`.list-group-item[data-tab='${tabId}']`);
+				if (selectedButton) {
+					selectedButton.classList.add("active");
+				}
+
+				// 2. 动画切换逻辑
+				const currentContent = document.querySelector(".tab-pane-fade.show");
+
+				if (currentContent) {
+					isAnimating = true;
+
+					// 第一步：淡出
+					currentContent.classList.remove("show");
+
+					setTimeout(() => {
+						// 第二步：隐藏旧元素
+						currentContent.classList.remove("active-block");
+
+						if (targetContent) {
+							// 第三步：显示新元素 (display: block)
+							targetContent.classList.add("active-block");
+
+							// 强制重排
+							void targetContent.offsetWidth;
+
+							// 第四步：淡入
+							targetContent.classList.add("show");
+						}
+
+						setTimeout(() => {
+							isAnimating = false;
+						}, 100);
+					}, 100);
+				} else {
+					// 初始载入
+					if (targetContent) {
+						targetContent.classList.add("active-block", "show");
+					}
+				}
+			}
+
+			// --- 会话检查逻辑 ---
 			async function attemptSessionCheck() {
 				try {
-					// 使用 no-store 确保不使用缓存
 					const response = await fetch(SESSION_CHECK_URL, { method: "GET", cache: "no-store" });
-
-					// 按照要求，如果状态码是 200 或 500，则认为会话有效
-					if (response.status === 200 || response.status === 500) {
-						return true; // 检查成功
-					} else {
-						// 状态码非 200 且非 500 (如 401, 403)
-						return false; // 检查失败
-					}
+					if (response.status === 200 || response.status === 500) return true;
+					else return false;
 				} catch (error) {
-					// 网络错误 (如无法连接到服务器)
-					return false; // 检查失败
+					return false;
 				}
 			}
 
-			// 主会话检查函数，包含重试逻辑
 			async function checkSession() {
-				// 第一次尝试
 				const firstAttemptSuccess = await attemptSessionCheck();
+				if (firstAttemptSuccess) return;
 
-				if (firstAttemptSuccess) {
-					return; // 会话有效，退出
-				}
-
-				// 第一次尝试失败，等待 1 秒后进行重试
-				// 使用 setTimeout 确保在短时间后重试
 				await new Promise((resolve) => setTimeout(resolve, 1000));
 
-				// 第二次尝试
 				const secondAttemptSuccess = await attemptSessionCheck();
+				if (secondAttemptSuccess) return;
 
-				if (secondAttemptSuccess) {
-					return; // 重试后成功，退出
-				}
-
-				// 两次尝试均失败，判定为登录过期
-				clearInterval(sessionInterval); // 停止定时器
-				showSessionExpiredModal(); // 显示模态框
+				clearInterval(sessionInterval);
+				showSessionExpiredModal();
 			}
 
-			// 页面载入完成后执行
 			document.addEventListener("DOMContentLoaded", () => {
-				// 1. 初始 Cookie 检查
+				// 1. 初始 Cookie 检查 (管理员端检查 'token')
 				if (Cookies.get("token") === undefined) {
 					window.location.href = LOGIN_URL;
-					return; // 立即退出，避免执行后续逻辑
+					return;
 				}
 
-				// 2. 预设显示第一个分页（管理员面板的第一个是 'dashboard'）
+				// 2. 预设显示仪表盘
 				showTab("dashboard");
 
-				// 3. 启动会话心跳检查
-				// 立即执行一次，然后每隔 30 秒执行一次
+				// 3. 启动会话检查
 				checkSession();
 				sessionInterval = setInterval(checkSession, CHECK_INTERVAL);
 
-				// 4. 为模态框按钮添加事件监听器
+				// 4. 绑定模态框按钮
 				document.getElementById("modal-confirm-btn").addEventListener("click", handleModalConfirm);
 			});
 		</script>
