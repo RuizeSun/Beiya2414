@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 	<head>
 		<meta charset="UTF-8" />
@@ -93,7 +93,7 @@
 						<!-- 独立模块：返回主页 -->
 						<div class="card shadow-sm border-0 mb-3 rounded-3">
 							<div class="list-group list-group-flush rounded-3">
-								<button class="list-group-item list-group-item-action py-3 border-0 text-primary fw-bold d-flex align-items-center" onclick="location.href='/teacher/index.html'">
+								<button class="list-group-item list-group-item-action py-3 border-0 text-primary fw-bold d-flex align-items-center" onclick="location.href = '/teacher/index.html'">
 									<i class="bi bi-arrow-left-circle-fill me-2 fs-5"></i>
 									<span>返回主页</span>
 								</button>
@@ -112,6 +112,7 @@
 										<div class="list-group list-group-flush">
 											<button class="list-group-item list-group-item-action py-3 border-0 active" onclick="showTab('students')" data-tab="students">学生管理</button>
 											<button class="list-group-item list-group-item-action py-3 border-0" onclick="showTab('homework')" data-tab="homework">家庭作业</button>
+											<button class="list-group-item list-group-item-action py-3 border-0" onclick="showTab('homework-grading')" data-tab="homework">作业批改</button>
 										</div>
 									</div>
 								</div>
@@ -132,6 +133,11 @@
 							<!-- 家庭作业 -->
 							<div id="homework" class="tab-pane-fade">
 								<iframe src="/teacher/teacher-dashboard/homework.html" id="homework-iframe"></iframe>
+							</div>
+
+							<!-- 家庭作业批改 -->
+							<div id="homework-grading" class="tab-pane-fade">
+								<iframe src="/teacher/teacher-dashboard/grading.html" id="homework-grading-iframe"></iframe>
 							</div>
 						</div>
 					</div>

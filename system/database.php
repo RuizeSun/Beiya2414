@@ -48,7 +48,7 @@ function check_teacher_auth()
     }
     $token = $_COOKIE['token'];
     $currentTime = time();
-    $stmt = $db->prepare("SELECT Id, firstname, lastname FROM teachers WHERE token = ? AND tokenExpire > ?");
+    $stmt = $db->prepare("SELECT Id, firstname, lastname, subject FROM teachers WHERE token = ? AND tokenExpire > ?");
     $stmt->execute([$token, $currentTime]);
     $usr = $stmt->fetch();
     if ($usr) {

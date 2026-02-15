@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 	<head>
 		<meta charset="UTF-8" />
@@ -287,8 +287,14 @@
 						<i data-lucide="x" class="w-6 h-6"></i>
 					</button>
 				</div>
-				<div class="max-h-[80vh] overflow-y-auto flex justify-center items-center p-2">
-					<img id="submissionImageView" class="w-full h-auto rounded-lg shadow-xl" alt="提交的作业图片" />
+				<!-- 图片显示区域：使用相对定位容器 -->
+				<div class="max-h-[80vh] w-full overflow-y-auto flex justify-center items-center p-2">
+					<div class="relative inline-block w-full max-w-full">
+						<!-- 学生作业原图 -->
+						<img id="submissionImageView" class="w-full h-auto rounded-lg shadow-xl block" alt="提交的作业图片" />
+						<!-- 老师批改图层 (默认隐藏) -->
+						<img id="gradingImageView" class="absolute inset-0 w-full h-full object-contain pointer-events-none hidden" alt="老师批改" />
+					</div>
 				</div>
 				<div id="viewModalLoading" class="text-center p-8 text-xl text-primary-dark hidden">
 					<i data-lucide="loader-circle" class="w-8 h-8 inline animate-spin mr-2"></i>
@@ -508,14 +514,35 @@
 			 */
 			function createStudentCard(student) {
 				const submitted = student.submitted;
+				const graded = student.graded;
 				const card = document.createElement("div");
 
-				// 提交状态的样式
-				const statusClass = submitted ? "bg-green-100 text-green-700 border-green-400" : "bg-red-100 text-red-700 border-red-400";
-				const statusIcon = submitted ? "check-circle" : "x-circle";
-				const statusText = submitted ? "已提交" : "未提交";
+				// 状态样式逻辑
+				let statusClass, statusIcon, statusText, borderClass;
 
-				card.className = `bg-white p-4 rounded-xl shadow-md border-t-4 ${submitted ? "border-green-500" : "border-red-500"} flex flex-col justify-between`;
+				if (submitted) {
+					if (graded) {
+						// 已批改状态 (蓝色/紫色)
+						statusClass = "bg-blue-100 text-blue-700 border-blue-400";
+						statusIcon = "check-check"; // 双勾图标
+						statusText = "已批改";
+						borderClass = "border-blue-500";
+					} else {
+						// 仅提交状态 (绿色)
+						statusClass = "bg-green-100 text-green-700 border-green-400";
+						statusIcon = "check-circle";
+						statusText = "已提交";
+						borderClass = "border-green-500";
+					}
+				} else {
+					// 未提交状态 (红色)
+					statusClass = "bg-red-100 text-red-700 border-red-400";
+					statusIcon = "x-circle";
+					statusText = "未提交";
+					borderClass = "border-red-500";
+				}
+
+				card.className = `bg-white p-4 rounded-xl shadow-md border-t-4 ${borderClass} flex flex-col justify-between`;
 				card.innerHTML = `
             <div>
                 <div class="flex items-center justify-between">
@@ -537,7 +564,7 @@
 					submitted
 						? `
                     <button class="w-full mt-2 bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded-lg transition shadow-md" 
-                            onclick="openViewModal('${student.fullName}', ${student.submissionId})">
+                            onclick="openViewModal('${student.fullName}', ${student.submissionId}, ${graded ? "true" : "false"})">
                         <i data-lucide="eye" class="w-4 h-4 inline mr-1"></i> 查看作业
                     </button>`
 						: ""
@@ -765,7 +792,7 @@
 						currentFile = new File([blob], "captured-photo-rotated.jpg", { type: "image/jpeg" });
 					},
 					"image/jpeg",
-					0.9
+					0.9,
 				);
 			}
 
@@ -861,29 +888,45 @@
 			/**
 			 * 打开查看作业模态框
 			 */
-			async function openViewModal(studentName, submissionId) {
+			async function openViewModal(studentName, submissionId, isGraded) {
 				const viewModal = document.getElementById("viewModal");
-				const imgEl = document.getElementById("submissionImageView");
+				const studentImgEl = document.getElementById("submissionImageView");
+				const gradingImgEl = document.getElementById("gradingImageView");
 				const loadingEl = document.getElementById("viewModalLoading");
 
 				document.getElementById("viewModalStudentName").textContent = studentName;
 
-				imgEl.src = "";
-				imgEl.classList.add("hidden");
+				// 重置
+				studentImgEl.src = "";
+				gradingImgEl.src = "";
+				studentImgEl.classList.add("hidden");
+				gradingImgEl.classList.add("hidden");
+
 				loadingEl.classList.remove("hidden");
 				viewModal.classList.remove("hidden");
 
 				try {
-					// 直接请求图像
-					const imageUrl = `${API_URL}?action=view_submission&submission_id=${submissionId}`;
-					imgEl.src = imageUrl + "&t=" + Date.now();
+					// 1. 加载学生原图
+					const studentImgUrl = `${API_URL}?action=view_submission&submission_id=${submissionId}&type=student`;
+					studentImgEl.src = studentImgUrl + "&t=" + Date.now();
 
-					imgEl.onload = () => {
+					studentImgEl.onload = () => {
 						loadingEl.classList.add("hidden");
-						imgEl.classList.remove("hidden");
+						studentImgEl.classList.remove("hidden");
+
+						// 2. 如果已批改，加载老师批改图
+						if (isGraded) {
+							const gradingImgUrl = `${API_URL}?action=view_submission&submission_id=${submissionId}&type=teacher`;
+							gradingImgEl.src = gradingImgUrl + "&t=" + Date.now();
+
+							// 当批改图也加载完成（或失败）时，显示它
+							gradingImgEl.onload = () => {
+								gradingImgEl.classList.remove("hidden");
+							};
+						}
 					};
 
-					imgEl.onerror = () => {
+					studentImgEl.onerror = () => {
 						loadingEl.classList.add("hidden");
 						showMessage("加载图片失败，可能是图片不存在或服务器错误。", "error");
 						closeModal("viewModal");
