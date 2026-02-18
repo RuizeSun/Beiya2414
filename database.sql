@@ -1,8 +1,36 @@
 ﻿# Host: localhost  (Version: 5.7.26)
-# Date: 2026-02-15 19:57:16
+# Date: 2026-02-19 01:37:23
 # Generator: MySQL-Front 5.3  (Build 4.234)
 
 /*!40101 SET NAMES utf8 */;
+
+#
+# Structure for table "ai_models"
+#
+
+DROP TABLE IF EXISTS `ai_models`;
+CREATE TABLE `ai_models` (
+  `Id` int(11) NOT NULL AUTO_INCREMENT,
+  `model_name` varchar(100) NOT NULL COMMENT '模型显示名称(如: GPT-4o)',
+  `model_alias` varchar(100) NOT NULL COMMENT 'API调用标识(如: gpt-4o)',
+  `provider_id` int(11) DEFAULT NULL COMMENT '关联到 ai_providers 表ID',
+  `is_active` tinyint(1) DEFAULT '1',
+  PRIMARY KEY (`Id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='AI模型定义清单';
+
+#
+# Structure for table "ai_providers"
+#
+
+DROP TABLE IF EXISTS `ai_providers`;
+CREATE TABLE `ai_providers` (
+  `Id` int(11) NOT NULL AUTO_INCREMENT,
+  `provider_name` varchar(50) DEFAULT NULL COMMENT '供应商名称',
+  `api_key` varchar(255) DEFAULT NULL COMMENT '调用密钥',
+  `base_url` varchar(255) DEFAULT NULL COMMENT 'API地址',
+  `is_active` tinyint(1) DEFAULT '1' COMMENT '是否启用',
+  PRIMARY KEY (`Id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='AI密钥及服务商管理';
 
 #
 # Structure for table "groups"
@@ -47,7 +75,7 @@ CREATE TABLE `homeworkcheck` (
   `check_image` longblob COMMENT '如果有手写批改图，可以存这里',
   `createtime` int(11) DEFAULT NULL COMMENT '批改时间',
   PRIMARY KEY (`Id`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='老师批改记录';
+) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8 COMMENT='老师批改记录';
 
 #
 # Structure for table "homeworksubmission"
@@ -62,7 +90,7 @@ CREATE TABLE `homeworksubmission` (
   `time` int(11) DEFAULT NULL COMMENT '第一次提交时间',
   `updatetime` int(11) DEFAULT NULL COMMENT '更新时间（如果没有更新过就是初次提交时间）',
   PRIMARY KEY (`Id`)
-) ENGINE=MyISAM AUTO_INCREMENT=5 DEFAULT CHARSET=utf8 COMMENT='学生作业提交';
+) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=utf8 COMMENT='学生作业提交';
 
 #
 # Structure for table "scorechangelog"
@@ -121,6 +149,23 @@ CREATE TABLE `students` (
   `password` varchar(255) DEFAULT NULL COMMENT '密码',
   PRIMARY KEY (`Id`)
 ) ENGINE=MyISAM AUTO_INCREMENT=50 DEFAULT CHARSET=utf8 COMMENT='学生信息表';
+
+#
+# Structure for table "teacher_model_quotas"
+#
+
+DROP TABLE IF EXISTS `teacher_model_quotas`;
+CREATE TABLE `teacher_model_quotas` (
+  `Id` int(11) NOT NULL AUTO_INCREMENT,
+  `teacherid` int(11) NOT NULL COMMENT '教师ID',
+  `modelid` int(11) NOT NULL COMMENT '模型ID',
+  `max_quota` int(11) DEFAULT '0' COMMENT '总额度(次/token)，0表示无限制',
+  `used_quota` int(11) DEFAULT '0' COMMENT '已消耗额度',
+  `expire_time` int(11) DEFAULT NULL COMMENT '额度有效期截止时间戳',
+  `is_enabled` tinyint(1) DEFAULT '1' COMMENT '该模型对该教师是否启用',
+  PRIMARY KEY (`Id`),
+  UNIQUE KEY `teacher_model_unique` (`teacherid`,`modelid`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='教师模型额度授权表';
 
 #
 # Structure for table "teachers"
