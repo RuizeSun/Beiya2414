@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-TW">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-		<title>教师批改系统 (含绘图功能)</title>
+		<title>教师批改系统 (含 AI 辅助与绘图)</title>
 		<script src="https://cdn.tailwindcss.com"></script>
 		<style>
 			.no-scrollbar::-webkit-scrollbar {
@@ -16,7 +16,6 @@
 			.modal-active {
 				overflow: hidden;
 			}
-			/* 画布容器，确保画布完全重叠在图片上方 */
 			#canvas-container {
 				position: relative;
 				display: inline-block;
@@ -26,321 +25,309 @@
 				position: absolute;
 				top: 0;
 				left: 0;
-				touch-action: none; /* 防止触控时页面滚动，确保绘图流畅 */
+				touch-action: none;
 				cursor: crosshair;
+			}
+			.loading-overlay {
+				position: absolute;
+				inset: 0;
+				background: rgba(255, 255, 255, 0.7);
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				z-index: 50;
 			}
 		</style>
 	</head>
 	<body class="bg-gray-100 h-screen flex flex-col font-sans">
-		<!-- 顶部标题与筛选器 -->
 		<header class="bg-white shadow-md z-10 p-4 border-b">
-			<div class="flex justify-between items-center mb-4">
-				<h1 class="text-xl font-bold text-gray-800">作业批改工作台</h1>
-				<button onclick="fetchList()" class="text-blue-600 font-medium text-sm">重新整理</button>
-			</div>
-
-			<!-- 筛选与搜寻区域 -->
-			<div class="space-y-2">
-				<div class="flex gap-2">
-					<input type="text" id="searchName" placeholder="搜寻学生姓名..." class="flex-1 bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-					<input type="date" id="searchDate" class="w-40 bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-				</div>
-				<div class="flex gap-2">
-					<select id="filterStatus" class="flex-1 bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none">
+			<div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+				<h1 class="text-xl font-bold text-gray-800">作业批改管理</h1>
+				<div class="flex flex-wrap items-center gap-2">
+					<input type="text" id="searchName" placeholder="搜寻学生姓名..." class="border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none" />
+					<input type="date" id="searchDate" class="border rounded px-3 py-2 text-sm outline-none" />
+					<select id="statusFilter" class="border rounded px-3 py-2 text-sm outline-none">
 						<option value="all">全部状态</option>
 						<option value="ungraded">未批改</option>
 						<option value="graded">已批改</option>
 					</select>
-					<select id="sortOrder" class="flex-1 bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none">
-						<option value="desc">时间降序 (新→旧)</option>
-						<option value="asc">时间升序 (旧→新)</option>
-					</select>
+					<button onclick="fetchList()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition">筛选</button>
 				</div>
 			</div>
 		</header>
 
-		<!-- 作业列表 -->
-		<main id="homeworkList" class="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
-			<div class="text-center text-gray-400 py-10 italic">载入中...</div>
+		<main class="flex-1 overflow-y-auto p-4 md:p-6 no-scrollbar">
+			<div class="max-w-7xl mx-auto">
+				<div id="homework-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+					<!-- 动态载入 -->
+				</div>
+			</div>
 		</main>
 
-		<!-- 批改弹窗 (Modal) -->
-		<div id="gradingModal" class="fixed inset-0 bg-black bg-opacity-95 z-50 hidden flex flex-col">
-			<!-- 弹窗顶部 -->
-			<div class="flex justify-between items-center p-4 bg-gray-900 text-white">
-				<div class="flex-1 min-w-0 mr-4">
-					<h3 id="modalStudentName" class="font-bold text-lg truncate">学生姓名</h3>
-					<p id="modalHomeworkTitle" class="text-xs text-gray-400 truncate">作业标题</p>
-				</div>
-				<div class="flex items-center gap-3">
-					<button onclick="clearCanvas()" class="bg-red-900/50 text-red-200 px-3 py-1 rounded text-xs border border-red-700">清除重画</button>
-					<button onclick="closeModal()" class="text-3xl font-light">&times;</button>
-				</div>
-			</div>
-
-			<!-- 作业图片与画布区域 -->
-			<div class="flex-1 overflow-auto flex items-center justify-center p-2 bg-black">
-				<div id="canvas-container">
-					<img id="modalImage" src="" alt="作业图片" class="max-w-full max-h-full block" />
-					<!-- 批改画布，尺寸会在图片加载后动态调整 -->
-					<canvas id="grading-canvas"></canvas>
-				</div>
-				<div id="imageError" class="hidden text-gray-500 flex flex-col items-center">
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-					</svg>
-					<span>无法载入图片</span>
-				</div>
-			</div>
-
-			<!-- 评分控制台 -->
-			<div class="bg-white p-5 rounded-t-2xl shadow-2xl">
-				<div class="flex gap-4 mb-4">
-					<div class="w-1/3 text-center border-r border-gray-100">
-						<label class="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">评分</label>
-						<input type="number" id="gradeScore" min="0" max="100" class="w-full text-center text-3xl font-bold text-red-600 border-b-2 border-transparent focus:border-red-500 outline-none py-1" placeholder="0" />
+		<div id="gradeModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+			<div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[95vh] flex flex-col overflow-hidden relative">
+				<div class="p-4 border-b flex justify-between items-center bg-gray-50">
+					<div>
+						<h2 id="modalTitle" class="text-lg font-bold text-gray-800">批改作业</h2>
+						<p id="modalSubTitle" class="text-xs text-gray-500"></p>
 					</div>
-					<div class="w-2/3">
-						<label class="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">批语</label>
-						<textarea id="gradeContent" rows="1" class="w-full border-b-2 border-gray-100 focus:border-blue-500 outline-none py-2 text-sm resize-none" placeholder="请输入评语 (选填)"></textarea>
+					<button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 text-2xl px-2">&times;</button>
+				</div>
+
+				<div class="flex-1 overflow-y-auto flex flex-col md:flex-row">
+					<div class="flex-1 bg-gray-200 p-4 flex items-center justify-center overflow-auto min-h-[400px]">
+						<div id="canvas-container">
+							<img id="studentWorkImg" src="" alt="学生作业" class="max-w-full h-auto shadow-lg" />
+							<canvas id="grading-canvas"></canvas>
+						</div>
+					</div>
+
+					<div class="w-full md:w-80 border-l bg-white p-5 flex flex-col gap-4">
+						<div class="p-3 bg-blue-50 rounded-lg border border-blue-100">
+							<label class="block text-xs font-bold text-blue-700 mb-2">AI 辅助批改</label>
+							<select id="aiModelSelect" class="w-full border rounded p-2 text-sm mb-2 outline-none">
+								<option value="">载入模型中...</option>
+							</select>
+							<textarea id="aiInstruction" placeholder="输入 AI 批改指令 (例如：请纠正语法错误并评分)..." class="w-full border rounded p-2 text-xs mb-2 h-16 outline-none"></textarea>
+							<button id="aiBtn" onclick="runAIGrade()" class="w-full bg-indigo-600 text-white py-2 rounded text-sm hover:bg-indigo-700">执行 AI 批改</button>
+						</div>
+						<hr />
+						<div>
+							<label class="block text-sm font-medium text-gray-700 mb-1">给予评分 (0-100)</label>
+							<input type="number" id="gradeScore" min="0" max="100" class="w-full border rounded p-2 text-lg font-bold text-center text-blue-600 outline-none" placeholder="分" />
+						</div>
+						<div>
+							<label class="block text-sm font-medium text-gray-700 mb-1">评语内容</label>
+							<textarea id="gradeContent" class="w-full border rounded p-2 text-sm h-32 outline-none" placeholder="请输入给学生的评语..."></textarea>
+						</div>
+						<div class="mt-auto flex flex-col gap-2">
+							<button onclick="clearCanvas()" class="w-full border border-gray-300 text-gray-600 py-2 rounded text-sm hover:bg-gray-50">清除画布</button>
+							<button id="submitBtn" onclick="submitGrade()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition">确认并保存批改</button>
+						</div>
 					</div>
 				</div>
-				<button id="submitBtn" onclick="submitGrade()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg active:scale-95 transition-transform shadow-lg shadow-blue-200">确认并保存批改</button>
+				<div id="aiLoading" class="loading-overlay hidden">
+					<div class="text-center">
+						<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-2"></div>
+						<p class="text-sm text-gray-600 font-medium">AI 正在阅卷并分析图片...</p>
+					</div>
+				</div>
 			</div>
 		</div>
 
 		<script>
 			const API = "/system/teacher-grading.php";
-			const VIEW_IMG = "/system/teacher-grading-image-view.php";
 			let currentId = null;
-
-			// 画布相关变量
+			let currentHomeworkData = null;
 			const canvas = document.getElementById("grading-canvas");
 			const ctx = canvas.getContext("2d");
+			const img = document.getElementById("studentWorkImg");
 			let isDrawing = false;
 
-			document.addEventListener("DOMContentLoaded", () => {
+			window.onload = () => {
 				fetchList();
-				setupCanvas();
+				fetchAIModels();
+				initCanvas();
+			};
 
-				// 绑定筛选事件
-				document.getElementById("searchName").addEventListener("input", debounce(fetchList, 500));
-				document.getElementById("searchDate").addEventListener("change", fetchList);
-				document.getElementById("filterStatus").addEventListener("change", fetchList);
-				document.getElementById("sortOrder").addEventListener("change", fetchList);
-			});
-
-			// 初始化画布监听
-			function setupCanvas() {
-				const getPos = (e) => {
-					const rect = canvas.getBoundingClientRect();
-					// 处理触控与滑鼠的不同坐标获取
-					const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-					const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-					// 将屏幕坐标转换为 Canvas 内部的绘图坐标
-					return {
-						x: (clientX - rect.left) * (canvas.width / rect.width),
-						y: (clientY - rect.top) * (canvas.height / rect.height),
-					};
-				};
-
-				const start = (e) => {
-					isDrawing = true;
-					const pos = getPos(e);
-					ctx.beginPath();
-					ctx.moveTo(pos.x, pos.y);
-					// 防止移动端拖动页面
-					if (e.touches) e.preventDefault();
-				};
-
-				const move = (e) => {
-					if (!isDrawing) return;
-					const pos = getPos(e);
-					ctx.lineTo(pos.x, pos.y);
-					ctx.strokeStyle = "red"; // 批改统一使用红色
-					ctx.lineWidth = 5; // 线条宽度
-					ctx.lineCap = "round"; // 圆润线条
-					ctx.lineJoin = "round";
-					ctx.stroke();
-					if (e.touches) e.preventDefault();
-				};
-
-				const stop = () => {
-					isDrawing = false;
-				};
-
-				// 滑鼠事件
-				canvas.addEventListener("mousedown", start);
-				canvas.addEventListener("mousemove", move);
-				window.addEventListener("mouseup", stop);
-
-				// 触控事件
-				canvas.addEventListener("touchstart", start, { passive: false });
-				canvas.addEventListener("touchmove", move, { passive: false });
-				canvas.addEventListener("touchend", stop);
+			async function fetchList() {
+				const name = document.getElementById("searchName").value;
+				const date = document.getElementById("searchDate").value;
+				const status = document.getElementById("statusFilter").value;
+				try {
+					const res = await fetch(`${API}?action=list&student_name=${encodeURIComponent(name)}&date=${date}&status=${status}`);
+					const json = await res.json();
+					const container = document.getElementById("homework-list");
+					container.innerHTML = "";
+					if (json.status === "success") {
+						json.data.forEach((item) => {
+							const card = document.createElement("div");
+							card.className = "bg-white rounded-xl shadow-sm border p-4 hover:shadow-md transition cursor-pointer relative group";
+							card.onclick = () => openModal(item);
+							const statusBadge = item.score !== null ? `<span class="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-bold">已批改 ${item.score}分</span>` : `<span class="bg-orange-100 text-orange-700 text-[10px] px-2 py-0.5 rounded-full font-bold">待批改</span>`;
+							const displayName = item.student_name || `${item.lastname}${item.firstname}`;
+							card.innerHTML = `
+								<div class="aspect-video bg-gray-100 rounded-lg mb-3 overflow-hidden border">
+									<img src="${item.student_image}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/400x300?text=No+Image'">
+								</div>
+								<div class="flex justify-between items-start mb-1">
+									<h3 class="font-bold text-gray-800 truncate flex-1">${displayName}</h3>
+									${statusBadge}
+								</div>
+								<p class="text-xs text-gray-500 truncate">${item.homework_title}</p>
+								<p class="text-[10px] text-gray-400 mt-2">${item.submit_time}</p>
+							`;
+							container.appendChild(card);
+						});
+					}
+				} catch (e) {
+					console.error(e);
+				}
 			}
 
-			// 清除画布
+			async function fetchAIModels() {
+				try {
+					const res = await fetch(`${API}?action=get_ai_models`);
+					const json = await res.json();
+					const select = document.getElementById("aiModelSelect");
+					select.innerHTML = "";
+					if (json.status === "success" && json.data.length > 0) {
+						json.data.forEach((m) => {
+							const opt = document.createElement("option");
+							opt.value = m.model_alias;
+							opt.innerText = m.model_name;
+							select.appendChild(opt);
+						});
+					} else {
+						select.innerHTML = '<option value="">未授权 AI 模型</option>';
+					}
+				} catch (e) {
+					console.error(e);
+				}
+			}
+
+			function openModal(data) {
+				currentId = data.submission_id;
+				currentHomeworkData = data;
+				const displayName = data.student_name || `${data.lastname}${data.firstname}`;
+				document.getElementById("modalTitle").innerText = `${displayName} 的作业`;
+				document.getElementById("modalSubTitle").innerText = data.homework_title;
+				document.getElementById("gradeScore").value = data.score !== null ? data.score : "";
+				document.getElementById("gradeContent").value = data.comment || "";
+				img.src = data.student_image;
+				document.getElementById("gradeModal").classList.remove("hidden");
+				document.body.classList.add("modal-active");
+				img.onload = () => {
+					canvas.width = img.clientWidth;
+					canvas.height = img.clientHeight;
+					clearCanvas();
+				};
+			}
+
+			function closeModal() {
+				document.getElementById("gradeModal").classList.add("hidden");
+				document.body.classList.remove("modal-active");
+			}
+
+			function initCanvas() {
+				const getPos = (e) => {
+					const rect = canvas.getBoundingClientRect();
+					const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+					const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+					return { x: clientX - rect.left, y: clientY - rect.top };
+				};
+				const start = (e) => {
+					isDrawing = true;
+					const p = getPos(e);
+					ctx.beginPath();
+					ctx.moveTo(p.x, p.y);
+				};
+				const draw = (e) => {
+					if (!isDrawing) return;
+					const p = getPos(e);
+					ctx.lineWidth = 3;
+					ctx.lineCap = "round";
+					ctx.strokeStyle = "red";
+					ctx.lineTo(p.x, p.y);
+					ctx.stroke();
+				};
+				const end = () => {
+					isDrawing = false;
+				};
+				canvas.addEventListener("mousedown", start);
+				canvas.addEventListener("mousemove", draw);
+				window.addEventListener("mouseup", end);
+				canvas.addEventListener("touchstart", (e) => {
+					e.preventDefault();
+					start(e);
+				});
+				canvas.addEventListener("touchmove", (e) => {
+					e.preventDefault();
+					draw(e);
+				});
+				canvas.addEventListener("touchend", end);
+			}
+
 			function clearCanvas() {
 				ctx.clearRect(0, 0, canvas.width, canvas.height);
 			}
 
-			// 获取作业列表
-			async function fetchList() {
-				const listContainer = document.getElementById("homeworkList");
-				const params = new URLSearchParams({
-					action: "list",
-					student_name: document.getElementById("searchName").value,
-					date: document.getElementById("searchDate").value,
-					status: document.getElementById("filterStatus").value,
-					sort: document.getElementById("sortOrder").value,
-				});
+			async function runAIGrade() {
+				const modelAlias = document.getElementById("aiModelSelect").value;
+				const userInstruction = document.getElementById("aiInstruction").value;
+				if (!modelAlias) return alert("请选择 AI 模型");
+				const overlay = document.getElementById("aiLoading");
+				overlay.classList.remove("hidden");
+
+				// 优化：Prompt 仅保留文字要求，不再嵌入 Base64 数据
+				const textPrompt = `你是一位专业的老师。
+作业题目：${currentHomeworkData.homework_title}
+老师的要求：${userInstruction || "请对作业进行评分并提供具体建议。"}
+
+请分析图片中的内容，直接返回 JSON 格式，包含 score (0-100) 和 comment (点评)。`;
 
 				try {
-					const res = await fetch(`${API}?${params}`);
-					if (res.status === 401) return (window.location.href = "/teacher/login.html");
-					const json = await res.json();
-					if (json.status !== "success") throw new Error(json.message);
-
-					listContainer.innerHTML =
-						json.data.length === 0
-							? `<div class="text-center py-20 text-gray-400 italic">目前没有符合条件的作业</div>`
-							: json.data
-									.map(
-										(item) => `
-                        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center active:bg-blue-50 transition"
-                             onclick="openGrade(${item.id}, '${item.student_name}', '${item.homework_title}', '${item.score || ""}')">
-                            <div class="flex-1 min-w-0 pr-4">
-                                <div class="flex items-center gap-2 mb-1">
-                                    <h4 class="font-bold text-gray-800 text-lg">${item.student_name}</h4>
-                                    ${item.is_graded ? `<span class="px-2 py-0.5 bg-green-100 text-green-600 text-[10px] rounded font-bold">${item.score} 分</span>` : `<span class="px-2 py-0.5 bg-orange-100 text-orange-600 text-[10px] rounded font-bold">待批改</span>`}
-                                </div>
-                                <p class="text-sm text-gray-600 truncate">${item.homework_title}</p>
-                                <p class="text-[10px] text-gray-400 mt-1">提交：${item.submit_time}</p>
-                            </div>
-                            <div class="text-gray-300">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                            </div>
-                        </div>
-                    `,
-									)
-									.join("");
-				} catch (err) {
-					listContainer.innerHTML = `<div class="text-center text-red-400 py-10">资料载入错误: ${err.message}</div>`;
-				}
-			}
-
-			// 打开批改弹窗
-			function openGrade(id, name, title, score) {
-				currentId = id;
-				document.getElementById("modalStudentName").innerText = name;
-				document.getElementById("modalHomeworkTitle").innerText = title;
-				document.getElementById("gradeScore").value = score;
-				document.getElementById("gradeContent").value = "";
-
-				const img = document.getElementById("modalImage");
-				const err = document.getElementById("imageError");
-
-				// 载入学生作业原图
-				img.src = `${VIEW_IMG}?type=submission&id=${id}&t=${Date.now()}`;
-				img.classList.add("hidden");
-				err.classList.add("hidden");
-				clearCanvas();
-
-				img.onload = () => {
-					img.classList.remove("hidden");
-
-					// 1. 同步画布的物理像素尺寸（原始解析度）
-					canvas.width = img.naturalWidth;
-					canvas.height = img.naturalHeight;
-
-					// 2. 同步画布的显示尺寸（CSS 宽高）
-					canvas.style.width = img.clientWidth + "px";
-					canvas.style.height = img.clientHeight + "px";
-
-					// 3. 尝试载入已有的批改图层（透明 PNG）
-					const checkImg = new Image();
-					// 这里 type=check 对应 view_image.php 中从 homeworkcheck 表读取的逻辑
-					checkImg.src = `${VIEW_IMG}?type=check&id=${id}&t=${Date.now()}`;
-					checkImg.crossOrigin = "anonymous";
-					checkImg.onload = () => {
-						// 将旧的批改绘制到画布上，实现“在原本基础上画图”
-						ctx.drawImage(checkImg, 0, 0);
-					};
-				};
-				img.onerror = () => {
-					err.classList.remove("hidden");
-					img.classList.add("hidden");
-				};
-
-				document.getElementById("gradingModal").classList.remove("hidden");
-				document.body.classList.add("modal-active");
-			}
-
-			// 关闭弹窗
-			function closeModal() {
-				document.getElementById("gradingModal").classList.add("hidden");
-				document.body.classList.remove("modal-active");
-				currentId = null;
-			}
-
-			// 提交批改结果
-			async function submitGrade() {
-				const score = document.getElementById("gradeScore").value;
-				const content = document.getElementById("gradeContent").value;
-				const btn = document.getElementById("submitBtn");
-
-				if (score === "") return alert("请输入评分分数");
-
-				// 将画布内容转换为透明的 Base64 PNG 图片
-				const drawingData = canvas.toDataURL("image/png");
-
-				btn.disabled = true;
-				btn.innerText = "储存中...";
-
-				try {
-					const res = await fetch(`${API}?action=submit_grade`, {
+					const res = await fetch(`${API}?action=ai_grade`, {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
 						body: JSON.stringify({
 							submission_id: currentId,
-							score: score,
-							content: content,
-							check_image: drawingData, // 传送绘图 Base64 到后端
+							model_alias: modelAlias,
+							prompt: textPrompt,
+							student_image: currentHomeworkData.student_image, // 图片数据独立传输
 						}),
 					});
 					const json = await res.json();
-
 					if (json.status === "success") {
-						btn.innerText = "储存成功 ✅";
-						btn.classList.replace("bg-blue-600", "bg-green-600");
+						let result = json.data;
+						if (typeof result === "string") {
+							try {
+								result = JSON.parse(result.replace(/```json|```/g, ""));
+							} catch (e) {}
+						}
+						document.getElementById("gradeScore").value = result.score || "";
+						document.getElementById("gradeContent").value = result.comment || result.content || (typeof result === "string" ? result : "");
+					} else {
+						alert("AI 失败: " + json.message);
+					}
+				} catch (e) {
+					alert("请求失败");
+				}
+				overlay.classList.add("hidden");
+			}
+
+			async function submitGrade() {
+				const score = document.getElementById("gradeScore").value;
+				const content = document.getElementById("gradeContent").value;
+				const btn = document.getElementById("submitBtn");
+				if (score === "") return alert("请输入评分");
+				const drawingData = canvas.toDataURL("image/png");
+				btn.disabled = true;
+				btn.innerText = "保存中...";
+				try {
+					const res = await fetch(`${API}?action=submit_grade`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ submission_id: currentId, score: score, content: content, check_image: drawingData }),
+					});
+					const json = await res.json();
+					if (json.status === "success") {
+						btn.innerText = "保存成功 ✅";
 						setTimeout(() => {
 							closeModal();
-							fetchList(); // 重新整理列表
+							fetchList();
 							btn.disabled = false;
 							btn.innerText = "确认并保存批改";
-							btn.classList.replace("bg-green-600", "bg-blue-600");
 						}, 1000);
 					} else {
 						alert(json.message);
 						btn.disabled = false;
-						btn.innerText = "确认并保存批改";
+						btn.innerText = "重新尝试";
 					}
-				} catch (err) {
-					alert("网路传输失败，请检查连线");
+				} catch (e) {
+					alert("网络错误");
 					btn.disabled = false;
-					btn.innerText = "确认并保存批改";
 				}
-			}
-
-			// 工具：防抖函数
-			function debounce(func, wait) {
-				let timeout;
-				return (...args) => {
-					clearTimeout(timeout);
-					timeout = setTimeout(() => func.apply(this, args), wait);
-				};
 			}
 		</script>
 	</body>

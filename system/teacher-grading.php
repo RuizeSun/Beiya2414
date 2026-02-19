@@ -1,38 +1,51 @@
 <?php
-require_once 'database.php';
 
-// 使用 database.php 中定义的验证函数
-$teacher = require_teacher_auth();
+/**
+ * teacher-grading.php
+ * 教师批改作业后端接口 - 支援多模态 AI 图片传输与权限优化
+ */
+
+require_once 'database.php';
+require_once 'aiprovider.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
+// 因为原 database.php 中的 require_teacher_auth 会直接 echo HTML 并 exit
+// 在 API 环境下，我们改用 check_teacher_auth 以便回传 JSON
+$teacher = check_teacher_auth();
+if (!$teacher) {
+    http_response_code(401);
+    echo json_encode(['status' => 'error', 'message' => '登入已过期或未授权，请重新登入']);
+    exit;
+}
+
+$aiService = new AIService($db);
 $action = $_GET['action'] ?? 'list';
 
 /**
- * 获取作业列表
- * 规则：老师只能看到同科目老师布置的作业
+ * 动作 1: 获取作业提交列表
  */
 if ($action === 'list') {
     try {
         $studentName = $_GET['student_name'] ?? '';
         $dateFilter = $_GET['date'] ?? '';
         $statusFilter = $_GET['status'] ?? 'all';
-        $sortOrder = $_GET['sort'] ?? 'desc';
 
-        $currentSubject = $teacher['subject'];
+        $currentSubject = $teacher['subject'] ?? '';
         if (empty($currentSubject)) {
-            echo json_encode(['status' => 'error', 'message' => '您的帐号未设置科目，无法获取作业列表']);
+            echo json_encode(['status' => 'error', 'message' => '您的帐号未设置科目，无法获取作业清单']);
             exit;
         }
 
         $sql = "SELECT 
                     hs.Id AS submission_id,
                     hs.time AS submit_time,
+                    hs.submission AS student_image, 
                     h.title AS homework_title,
                     s.firstname, 
                     s.lastname,
                     hc.score,
-                    hc.Id AS check_id
+                    hc.content AS teacher_comment
                 FROM homeworksubmission hs
                 JOIN homework h ON hs.homeworkid = h.Id
                 JOIN teachers creator ON h.teacherid = creator.Id
@@ -61,97 +74,116 @@ if ($action === 'list') {
             $sql .= " AND hc.Id IS NULL";
         }
 
-        $order = ($sortOrder === 'asc') ? 'ASC' : 'DESC';
-        $sql .= " ORDER BY hs.time $order";
+        $sql .= " ORDER BY hs.time DESC";
 
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
-        $rows = $stmt->fetchAll();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $result = array_map(function ($row) {
+            $imageBase64 = '';
+            if (!empty($row['student_image'])) {
+                $imageBase64 = 'data:image/jpeg;base64,' . base64_encode($row['student_image']);
+            }
             return [
-                'id' => $row['submission_id'],
+                'submission_id' => (int)$row['submission_id'],
                 'student_name' => $row['lastname'] . $row['firstname'],
                 'homework_title' => $row['homework_title'],
-                'submit_time' => date('Y-m-d H:i', $row['submit_time']),
-                'is_graded' => !empty($row['check_id']),
-                'score' => $row['score']
+                'submit_time' => date('Y-m-d H:i', (int)$row['submit_time']),
+                'student_image' => $imageBase64,
+                'score' => $row['score'],
+                'comment' => $row['teacher_comment'] ?? ''
             ];
         }, $rows);
 
         echo json_encode(['status' => 'success', 'data' => $result]);
     } catch (PDOException $e) {
-        http_response_code(500);
-        echo json_encode(['status' => 'error', 'message' => '资料库错误: ' . $e->getMessage()]);
+        error_log("Database Error in list: " . $e->getMessage());
+        echo json_encode(['status' => 'error', 'message' => '资料库连线失败']);
     }
 }
 
 /**
- * 提交批改结果（包含画图图片）
+ * 动作 2: 获取可用 AI 模型
  */
-elseif ($action === 'submit_grade') {
+elseif ($action === 'get_ai_models') {
+    try {
+        $models = $aiService->getAvailableModels($teacher['Id']);
+        echo json_encode(['status' => 'success', 'data' => $models]);
+    } catch (Exception $e) {
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    }
+}
+
+/**
+ * 动作 3: AI 批改作业
+ */
+elseif ($action === 'ai_grade') {
     $input = json_decode(file_get_contents('php://input'), true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        echo json_encode(['status' => 'error', 'message' => 'JSON 解析错误']);
+        exit;
+    }
 
     $submissionId = $input['submission_id'] ?? null;
-    $score = $input['score'] ?? null;
-    $content = $input['content'] ?? '';
-    $checkImageBase64 = $input['check_image'] ?? null; // 接收前端的 Base64 数据
+    $modelAlias = $input['model_alias'] ?? null;
+    $prompt = $input['prompt'] ?? '';
+    $studentImage = $input['student_image'] ?? null;
 
-    if (!$submissionId || $score === null) {
-        echo json_encode(['status' => 'error', 'message' => '参数不完整']);
+    if (!$submissionId || !$modelAlias) {
+        echo json_encode(['status' => 'error', 'message' => '缺少必要参数 (submission_id 或 model_alias)']);
         exit;
     }
 
     try {
-        // 处理 Base64 图片数据转换为二进位 Blob
+        // 呼叫 AIService 的 askAI，确保传入图片 Base64
+        $aiResult = $aiService->askAI($teacher['Id'], $modelAlias, $prompt, $studentImage);
+
+        if ($aiResult['success']) {
+            // content 应该是 AI 回传的纯文字内容 (已在 aiprovider.php 中清理过 markdown)
+            echo json_encode(['status' => 'success', 'data' => $aiResult['content']]);
+        } else {
+            echo json_encode(['status' => 'error', 'message' => $aiResult['error']]);
+        }
+    } catch (Exception $e) {
+        error_log("AI Grade Exception: " . $e->getMessage());
+        echo json_encode(['status' => 'error', 'message' => 'AI 服务异常: ' . $e->getMessage()]);
+    }
+}
+
+/**
+ * 动作 4: 储存批改结果
+ */
+elseif ($action === 'submit_grade') {
+    $input = json_decode(file_get_contents('php://input'), true);
+    $submissionId = $input['submission_id'] ?? null;
+    $score = $input['score'] ?? 0;
+    $content = $input['content'] ?? '';
+    $checkImageBase64 = $input['check_image'] ?? null;
+
+    try {
         $blobData = null;
-        if ($checkImageBase64 && strpos($checkImageBase64, 'data:image/png;base64,') === 0) {
-            $imgData = str_replace('data:image/png;base64,', '', $checkImageBase64);
-            $imgData = str_replace(' ', '+', $imgData);
-            $blobData = base64_decode($imgData);
+        if ($checkImageBase64 && strpos($checkImageBase64, 'base64,') !== false) {
+            $blobData = base64_decode(explode(',', $checkImageBase64)[1]);
         }
 
-        // 检查是否已有批改记录
-        $checkSql = "SELECT Id FROM homeworkcheck WHERE submissionid = ?";
-        $stmt = $db->prepare($checkSql);
+        $stmt = $db->prepare("SELECT Id FROM homeworkcheck WHERE submissionid = ?");
         $stmt->execute([$submissionId]);
         $existing = $stmt->fetch();
-
-        $timestamp = time();
+        $now = time();
 
         if ($existing) {
-            // 更新现有记录
-            $updateSql = "UPDATE homeworkcheck 
-                          SET teacherid = ?, score = ?, content = ?, check_image = ?, createtime = ? 
-                          WHERE Id = ?";
-            $stmt = $db->prepare($updateSql);
-            // 使用 PDO::PARAM_LOB 处理二进位数据
-            $stmt->bindParam(1, $teacher['Id']);
-            $stmt->bindParam(2, $score);
-            $stmt->bindParam(3, $content);
-            $stmt->bindParam(4, $blobData, PDO::PARAM_LOB);
-            $stmt->bindParam(5, $timestamp);
-            $stmt->bindParam(6, $existing['Id']);
-            $stmt->execute();
+            $sql = "UPDATE homeworkcheck SET teacherid=?, score=?, content=?, check_image=?, createtime=? WHERE Id=?";
+            $stmt = $db->prepare($sql);
+            $stmt->execute([$teacher['Id'], $score, $content, $blobData, $now, $existing['Id']]);
         } else {
-            // 插入新记录
-            $insertSql = "INSERT INTO homeworkcheck (submissionid, teacherid, score, content, check_image, createtime) 
-                          VALUES (?, ?, ?, ?, ?, ?)";
-            $stmt = $db->prepare($insertSql);
-            $stmt->bindParam(1, $submissionId);
-            $stmt->bindParam(2, $teacher['Id']);
-            $stmt->bindParam(3, $score);
-            $stmt->bindParam(4, $content);
-            $stmt->bindParam(5, $blobData, PDO::PARAM_LOB);
-            $stmt->bindParam(6, $timestamp);
-            $stmt->execute();
+            $sql = "INSERT INTO homeworkcheck (submissionid, teacherid, score, content, check_image, createtime) VALUES (?,?,?,?,?,?)";
+            $stmt = $db->prepare($sql);
+            $stmt->execute([$submissionId, $teacher['Id'], $score, $content, $blobData, $now]);
         }
-
-        echo json_encode(['status' => 'success', 'message' => '批改已保存']);
+        echo json_encode(['status' => 'success', 'message' => '批改已储存']);
     } catch (PDOException $e) {
-        http_response_code(500);
-        echo json_encode(['status' => 'error', 'message' => '保存失败: ' . $e->getMessage()]);
+        error_log("Save Grade Error: " . $e->getMessage());
+        echo json_encode(['status' => 'error', 'message' => '储存批改失败']);
     }
-} else {
-    echo json_encode(['status' => 'error', 'message' => '未知操作']);
 }
