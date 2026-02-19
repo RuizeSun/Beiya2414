@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="zh-TW">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>AI 管理控制台</title>
+		<script src="https://cdn.tailwindcss.com"></script>
+		<style>
+			.modal {
+				transition: opacity 0.25s ease;
+			}
+			body.modal-active {
+				overflow-x: hidden;
+				overflow-y: visible !important;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+				<!-- 1. 提供商管理 -->
+				<div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+					<h2 class="text-lg font-semibold mb-4 text-gray-700 border-b pb-2">1. AI 提供商</h2>
+					<form onsubmit="handleSubmit(event, 'add_provider')" class="space-y-3 mb-6">
+						<input type="text" name="provider_name" placeholder="名稱 (如: OpenAI, OpenRouter)" class="w-full p-2 border rounded text-sm" required />
+						<input type="text" name="base_url" placeholder="API Base URL" class="w-full p-2 border rounded text-sm" required />
+						<input type="password" name="api_key" placeholder="API Key" class="w-full p-2 border rounded text-sm" required />
+						<button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded text-sm hover:bg-indigo-700">添加提供商</button>
+					</form>
+					<div class="overflow-x-auto">
+						<table class="w-full text-sm text-left">
+							<thead>
+								<tr class="bg-gray-50 text-gray-500 font-medium">
+									<th class="p-2">名稱</th>
+									<th class="p-2">狀態</th>
+									<th class="p-2 text-right">操作</th>
+								</tr>
+							</thead>
+							<tbody id="provider-table-body"></tbody>
+						</table>
+					</div>
+				</div>
+
+				<!-- 2. 模型管理 -->
+				<div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+					<h2 class="text-lg font-semibold mb-4 text-gray-700 border-b pb-2">2. AI 模型清單</h2>
+					<form onsubmit="handleSubmit(event, 'add_model')" class="space-y-3 mb-6">
+						<select name="provider_id" id="provider-select" class="w-full p-2 border rounded text-sm" required></select>
+						<input type="text" name="model_name" placeholder="顯示名稱 (如: GPT-4o)" class="w-full p-2 border rounded text-sm" required />
+						<input type="text" name="model_alias" placeholder="API 標識碼 (如: gpt-4o)" class="w-full p-2 border rounded text-sm" required />
+						<button type="submit" class="w-full bg-blue-600 text-white py-2 rounded text-sm hover:bg-blue-700">添加模型</button>
+					</form>
+					<div class="overflow-x-auto">
+						<table class="w-full text-sm text-left">
+							<thead>
+								<tr class="bg-gray-50 text-gray-500 font-medium">
+									<th class="p-2">模型名稱</th>
+									<th class="p-2">標識碼</th>
+									<th class="p-2 text-right">操作</th>
+								</tr>
+							</thead>
+							<tbody id="model-table-body"></tbody>
+						</table>
+					</div>
+				</div>
+
+				<!-- 3. 權限與配額 -->
+				<div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2">
+					<h2 class="text-lg font-semibold mb-4 text-gray-700 border-b pb-2">3. 老師額度分配與監控</h2>
+					<form onsubmit="handleSubmit(event, 'set_quota')" class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8 items-end bg-gray-50 p-4 rounded-lg">
+						<div class="md:col-span-1">
+							<label class="block text-xs mb-1 text-gray-500">選擇老師</label>
+							<select name="teacherid" id="teacher-select" class="w-full p-2 border rounded text-sm" required></select>
+						</div>
+						<div class="md:col-span-1">
+							<label class="block text-xs mb-1 text-gray-500">選擇模型</label>
+							<select name="modelid" id="model-select" class="w-full p-2 border rounded text-sm" required></select>
+						</div>
+						<div>
+							<label class="block text-xs mb-1 text-gray-500">總額度 (0=無限)</label>
+							<input type="number" name="max_quota" value="100" class="w-full p-2 border rounded text-sm" />
+						</div>
+						<div>
+							<label class="block text-xs mb-1 text-gray-500">有效期</label>
+							<input type="date" name="expire_time" class="w-full p-2 border rounded text-sm" />
+						</div>
+						<button type="submit" class="bg-green-600 text-white py-2 rounded text-sm hover:bg-green-700 font-medium">保存配額設定</button>
+						<input type="hidden" name="is_enabled" value="1" />
+					</form>
+
+					<div class="overflow-x-auto">
+						<table class="w-full text-sm">
+							<thead class="bg-gray-100 text-gray-600">
+								<tr>
+									<th class="p-3 text-left">老師姓名</th>
+									<th class="p-3 text-left">已授權模型</th>
+									<th class="p-3 text-center">已用 / 總額</th>
+									<th class="p-3 text-left">到期日</th>
+									<th class="p-3 text-right">操作</th>
+								</tr>
+							</thead>
+							<tbody id="quota-table-body"></tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- 簡易編輯 Modal -->
+		<div id="edit-modal" class="modal opacity-0 pointer-events-none fixed w-full h-full top-0 left-0 flex items-center justify-center z-50">
+			<div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-50"></div>
+			<div class="modal-container bg-white w-11/12 md:max-w-md mx-auto rounded shadow-lg z-50 overflow-y-auto">
+				<div class="modal-content py-4 text-left px-6">
+					<div class="flex justify-between items-center pb-3">
+						<p class="text-2xl font-bold" id="modal-title">編輯項目</p>
+						<div class="modal-close cursor-pointer z-50" onclick="toggleModal()">
+							<svg class="fill-current text-black" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18"><path d="M14.53 4.53l-1.06-1.06L9 7.94 4.53 3.47 3.47 4.53 7.94 9l-4.47 4.47 1.06 1.06L9 10.06l4.47 4.47 1.06-1.06L10.06 9z"></path></svg>
+						</div>
+					</div>
+					<form id="edit-form" class="space-y-4">
+						<div id="modal-fields"></div>
+						<div class="flex justify-end pt-2">
+							<button type="button" onclick="toggleModal()" class="px-4 bg-transparent p-3 rounded-lg text-indigo-500 hover:bg-gray-100 hover:text-indigo-400 mr-2">取消</button>
+							<button type="submit" class="modal-close px-4 bg-indigo-500 p-3 rounded-lg text-white hover:bg-indigo-400">更新保存</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+
+		<script>
+			const API_URL = "/system/admin-ai.php";
+			let currentData = {};
+
+			async function loadData() {
+				try {
+					const response = await fetch(`${API_URL}?action=init_data`);
+					const result = await response.json();
+					if (result.status === "success") {
+						currentData = result.data;
+						renderUI();
+					} else {
+						showToast(result.message, "error");
+					}
+				} catch (e) {
+					showToast("無法連接到伺服器", "error");
+				}
+			}
+
+			function renderUI() {
+				renderProviders(currentData.providers);
+				renderModels(currentData.models);
+				renderTeachers(currentData.teachers);
+				renderQuotas(currentData.quotas);
+			}
+
+			function renderProviders(data) {
+				const body = document.getElementById("provider-table-body");
+				const select = document.getElementById("provider-select");
+				body.innerHTML = data
+					.map(
+						(p) => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="py-3 px-2 font-medium">${p.provider_name}</td>
+                    <td class="py-3 px-2 text-xs">${p.is_active ? "🟢 啟用" : "🔴 停用"}</td>
+                    <td class="py-3 px-2 text-right space-x-2">
+                        <button onclick="editProvider(${p.Id})" class="text-indigo-600 hover:underline">編輯</button>
+                        <button onclick="deleteItem('delete_provider', ${p.Id})" class="text-red-500 hover:underline">刪除</button>
+                    </td>
+                </tr>`,
+					)
+					.join("");
+				select.innerHTML = data.map((p) => `<option value="${p.Id}">${p.provider_name}</option>`).join("");
+			}
+
+			function renderModels(data) {
+				const body = document.getElementById("model-table-body");
+				const select = document.getElementById("model-select");
+				body.innerHTML = data
+					.map(
+						(m) => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="py-3 px-2">${m.model_name} <br><span class="text-[10px] text-gray-400">${m.provider_name}</span></td>
+                    <td class="py-3 px-2"><code>${m.model_alias}</code></td>
+                    <td class="py-3 px-2 text-right space-x-2">
+                        <button onclick="editModel(${m.Id})" class="text-indigo-600 hover:underline">編輯</button>
+                        <button onclick="deleteItem('delete_model', ${m.Id})" class="text-red-500 hover:underline">刪除</button>
+                    </td>
+                </tr>`,
+					)
+					.join("");
+				select.innerHTML = data.map((m) => `<option value="${m.Id}">${m.model_name} (${m.provider_name})</option>`).join("");
+			}
+
+			function renderTeachers(data) {
+				document.getElementById("teacher-select").innerHTML = data.map((t) => `<option value="${t.Id}">${t.lastname}${t.firstname}</option>`).join("");
+			}
+
+			function renderQuotas(data) {
+				document.getElementById("quota-table-body").innerHTML = data
+					.map(
+						(q) => `
+                <tr class="hover:bg-blue-50 border-b">
+                    <td class="p-3">${q.lastname}${q.firstname}</td>
+                    <td class="p-3 font-medium">${q.model_name}</td>
+                    <td class="p-3 text-center">
+                        <span class="${q.max_quota > 0 && q.used_quota >= q.max_quota ? "text-red-600 font-bold" : "text-green-600"}">${q.used_quota}</span> 
+                        / ${q.max_quota == 0 ? "♾️" : q.max_quota}
+                    </td>
+                    <td class="p-3 text-xs text-gray-500">${q.expire_time ? new Date(q.expire_time * 1000).toLocaleDateString() : "永久"}</td>
+                    <td class="p-3 text-right">
+                        <button onclick="deleteItem('delete_quota', ${q.Id})" class="text-red-400 hover:text-red-600">移除授權</button>
+                    </td>
+                </tr>`,
+					)
+					.join("");
+			}
+
+			// --- 編輯功能實作 ---
+			function editProvider(id) {
+				const p = currentData.providers.find((x) => x.Id == id);
+				openModal(
+					"編輯提供商",
+					"update_provider",
+					`
+                <input type="hidden" name="id" value="${p.Id}">
+                <label class="block text-sm">提供商名稱</label>
+                <input type="text" name="provider_name" value="${p.provider_name}" class="w-full p-2 border mb-3 rounded">
+                <label class="block text-sm">Base URL</label>
+                <input type="text" name="base_url" value="${p.base_url}" class="w-full p-2 border mb-3 rounded">
+                <label class="block text-sm text-indigo-600 font-bold">API Key (留空表示不修改)</label>
+                <input type="password" name="api_key" placeholder="安全原因已隱藏，如需修改請輸入新 Key" class="w-full p-2 border mb-3 rounded bg-yellow-50">
+                <label class="block text-sm">狀態</label>
+                <select name="is_active" class="w-full p-2 border rounded">
+                    <option value="1" ${p.is_active == 1 ? "selected" : ""}>啟用</option>
+                    <option value="0" ${p.is_active == 0 ? "selected" : ""}>禁用</option>
+                </select>
+            `,
+				);
+			}
+
+			function editModel(id) {
+				const m = currentData.models.find((x) => x.Id == id);
+				openModal(
+					"編輯模型資訊",
+					"update_model",
+					`
+                <input type="hidden" name="id" value="${m.Id}">
+                <label class="block text-sm">模型名稱</label>
+                <input type="text" name="model_name" value="${m.model_name}" class="w-full p-2 border mb-3 rounded">
+                <label class="block text-sm">API 標識碼</label>
+                <input type="text" name="model_alias" value="${m.model_alias}" class="w-full p-2 border mb-3 rounded">
+                <label class="block text-sm">狀態</label>
+                <select name="is_active" class="w-full p-2 border rounded">
+                    <option value="1" ${m.is_active == 1 ? "selected" : ""}>啟用</option>
+                    <option value="0" ${m.is_active == 0 ? "selected" : ""}>禁用</option>
+                </select>
+            `,
+				);
+			}
+
+			// --- 通用操作 ---
+			async function handleSubmit(event, action) {
+				event.preventDefault();
+				const formData = new FormData(event.target);
+				const data = Object.fromEntries(formData.entries());
+				data.action = action;
+				request(data);
+				event.target.reset();
+			}
+
+			async function deleteItem(action, id) {
+				if (!confirm("確定要執行此操作嗎？這將無法復原。")) return;
+				request({ action, id });
+			}
+
+			async function request(payload) {
+				try {
+					const response = await fetch(API_URL, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify(payload),
+					});
+					const res = await response.json();
+					if (res.status === "success") {
+						showToast(res.message, "success");
+						loadData();
+					} else {
+						showToast(res.message, "error");
+					}
+				} catch (e) {
+					showToast("操作失敗", "error");
+				}
+			}
+
+			// Modal 邏輯
+			function openModal(title, action, html) {
+				document.getElementById("modal-title").innerText = title;
+				document.getElementById("modal-fields").innerHTML = html;
+				const form = document.getElementById("edit-form");
+				form.onsubmit = (e) => {
+					e.preventDefault();
+					const d = Object.fromEntries(new FormData(form).entries());
+					d.action = action;
+					request(d);
+					toggleModal();
+				};
+				toggleModal();
+			}
+
+			function toggleModal() {
+				const modal = document.getElementById("edit-modal");
+				modal.classList.toggle("opacity-0");
+				modal.classList.toggle("pointer-events-none");
+				document.body.classList.toggle("modal-active");
+			}
+
+			function showToast(msg, type) {
+				const t = document.getElementById("toast");
+				t.className = `fixed top-5 right-5 z-50 p-4 rounded shadow-xl text-white transition-all duration-300 ${type === "success" ? "bg-green-500" : "bg-red-500"}`;
+				t.innerText = msg;
+				t.classList.remove("hidden");
+				setTimeout(() => t.classList.add("hidden"), 3000);
+			}
+
+			document.addEventListener("DOMContentLoaded", loadData);
+		</script>
+	</body>
+</html>
