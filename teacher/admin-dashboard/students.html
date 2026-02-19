@@ -356,7 +356,7 @@
 				const studentRow = document.querySelector(`#students-table-body tr[data-id="${id}"]`);
 				const studentName = studentRow ? studentRow.querySelector("td:nth-child(2)").textContent : `ID ${id}`;
 
-				// 由於不能使用 window.confirm()，我們將使用 window.prompt 模拟 confirm
+				// 由于不能使用 window.confirm()，我们将使用 window.prompt 模拟 confirm
 				const promptResult = window.prompt(`确认删除学生 ${studentName} (ID: ${id}) 吗？\n请输入“删除”以确认此操作。`);
 
 				if (promptResult !== "删除") {

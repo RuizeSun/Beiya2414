@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-TW">
+<html lang="zh-CN">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -22,7 +22,7 @@
 				<div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
 					<h2 class="text-lg font-semibold mb-4 text-gray-700 border-b pb-2">1. AI 提供商</h2>
 					<form onsubmit="handleSubmit(event, 'add_provider')" class="space-y-3 mb-6">
-						<input type="text" name="provider_name" placeholder="名稱 (如: OpenAI, OpenRouter)" class="w-full p-2 border rounded text-sm" required />
+						<input type="text" name="provider_name" placeholder="名称 (如: OpenAI, OpenRouter)" class="w-full p-2 border rounded text-sm" required />
 						<input type="text" name="base_url" placeholder="API Base URL" class="w-full p-2 border rounded text-sm" required />
 						<input type="password" name="api_key" placeholder="API Key" class="w-full p-2 border rounded text-sm" required />
 						<button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded text-sm hover:bg-indigo-700">添加提供商</button>
@@ -31,8 +31,8 @@
 						<table class="w-full text-sm text-left">
 							<thead>
 								<tr class="bg-gray-50 text-gray-500 font-medium">
-									<th class="p-2">名稱</th>
-									<th class="p-2">狀態</th>
+									<th class="p-2">名称</th>
+									<th class="p-2">状态</th>
 									<th class="p-2 text-right">操作</th>
 								</tr>
 							</thead>
@@ -43,19 +43,19 @@
 
 				<!-- 2. 模型管理 -->
 				<div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-					<h2 class="text-lg font-semibold mb-4 text-gray-700 border-b pb-2">2. AI 模型清單</h2>
+					<h2 class="text-lg font-semibold mb-4 text-gray-700 border-b pb-2">2. AI 模型清单</h2>
 					<form onsubmit="handleSubmit(event, 'add_model')" class="space-y-3 mb-6">
 						<select name="provider_id" id="provider-select" class="w-full p-2 border rounded text-sm" required></select>
-						<input type="text" name="model_name" placeholder="顯示名稱 (如: GPT-4o)" class="w-full p-2 border rounded text-sm" required />
-						<input type="text" name="model_alias" placeholder="API 標識碼 (如: gpt-4o)" class="w-full p-2 border rounded text-sm" required />
+						<input type="text" name="model_name" placeholder="显示名称 (如: GPT-4o)" class="w-full p-2 border rounded text-sm" required />
+						<input type="text" name="model_alias" placeholder="API 标识码 (如: gpt-4o)" class="w-full p-2 border rounded text-sm" required />
 						<button type="submit" class="w-full bg-blue-600 text-white py-2 rounded text-sm hover:bg-blue-700">添加模型</button>
 					</form>
 					<div class="overflow-x-auto">
 						<table class="w-full text-sm text-left">
 							<thead>
 								<tr class="bg-gray-50 text-gray-500 font-medium">
-									<th class="p-2">模型名稱</th>
-									<th class="p-2">標識碼</th>
+									<th class="p-2">模型名称</th>
+									<th class="p-2">标识码</th>
 									<th class="p-2 text-right">操作</th>
 								</tr>
 							</thead>
@@ -64,27 +64,27 @@
 					</div>
 				</div>
 
-				<!-- 3. 權限與配額 -->
+				<!-- 3. 权限与配额 -->
 				<div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2">
-					<h2 class="text-lg font-semibold mb-4 text-gray-700 border-b pb-2">3. 老師額度分配與監控</h2>
+					<h2 class="text-lg font-semibold mb-4 text-gray-700 border-b pb-2">3. 老师额度分配与监控</h2>
 					<form onsubmit="handleSubmit(event, 'set_quota')" class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8 items-end bg-gray-50 p-4 rounded-lg">
 						<div class="md:col-span-1">
-							<label class="block text-xs mb-1 text-gray-500">選擇老師</label>
+							<label class="block text-xs mb-1 text-gray-500">选择老师</label>
 							<select name="teacherid" id="teacher-select" class="w-full p-2 border rounded text-sm" required></select>
 						</div>
 						<div class="md:col-span-1">
-							<label class="block text-xs mb-1 text-gray-500">選擇模型</label>
+							<label class="block text-xs mb-1 text-gray-500">选择模型</label>
 							<select name="modelid" id="model-select" class="w-full p-2 border rounded text-sm" required></select>
 						</div>
 						<div>
-							<label class="block text-xs mb-1 text-gray-500">總額度 (0=無限)</label>
+							<label class="block text-xs mb-1 text-gray-500">总额度 (0=无限)</label>
 							<input type="number" name="max_quota" value="100" class="w-full p-2 border rounded text-sm" />
 						</div>
 						<div>
 							<label class="block text-xs mb-1 text-gray-500">有效期</label>
 							<input type="date" name="expire_time" class="w-full p-2 border rounded text-sm" />
 						</div>
-						<button type="submit" class="bg-green-600 text-white py-2 rounded text-sm hover:bg-green-700 font-medium">保存配額設定</button>
+						<button type="submit" class="bg-green-600 text-white py-2 rounded text-sm hover:bg-green-700 font-medium">保存配额设定</button>
 						<input type="hidden" name="is_enabled" value="1" />
 					</form>
 
@@ -92,9 +92,9 @@
 						<table class="w-full text-sm">
 							<thead class="bg-gray-100 text-gray-600">
 								<tr>
-									<th class="p-3 text-left">老師姓名</th>
-									<th class="p-3 text-left">已授權模型</th>
-									<th class="p-3 text-center">已用 / 總額</th>
+									<th class="p-3 text-left">老师姓名</th>
+									<th class="p-3 text-left">已授权模型</th>
+									<th class="p-3 text-center">已用 / 总额</th>
 									<th class="p-3 text-left">到期日</th>
 									<th class="p-3 text-right">操作</th>
 								</tr>
@@ -106,13 +106,13 @@
 			</div>
 		</div>
 
-		<!-- 簡易編輯 Modal -->
+		<!-- 简易编辑 Modal -->
 		<div id="edit-modal" class="modal opacity-0 pointer-events-none fixed w-full h-full top-0 left-0 flex items-center justify-center z-50">
 			<div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-50"></div>
 			<div class="modal-container bg-white w-11/12 md:max-w-md mx-auto rounded shadow-lg z-50 overflow-y-auto">
 				<div class="modal-content py-4 text-left px-6">
 					<div class="flex justify-between items-center pb-3">
-						<p class="text-2xl font-bold" id="modal-title">編輯項目</p>
+						<p class="text-2xl font-bold" id="modal-title">编辑项目</p>
 						<div class="modal-close cursor-pointer z-50" onclick="toggleModal()">
 							<svg class="fill-current text-black" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18"><path d="M14.53 4.53l-1.06-1.06L9 7.94 4.53 3.47 3.47 4.53 7.94 9l-4.47 4.47 1.06 1.06L9 10.06l4.47 4.47 1.06-1.06L10.06 9z"></path></svg>
 						</div>
@@ -143,7 +143,7 @@
 						showToast(result.message, "error");
 					}
 				} catch (e) {
-					showToast("無法連接到伺服器", "error");
+					showToast("无法连接到伺服器", "error");
 				}
 			}
 
@@ -162,10 +162,10 @@
 						(p) => `
                 <tr class="border-b hover:bg-gray-50">
                     <td class="py-3 px-2 font-medium">${p.provider_name}</td>
-                    <td class="py-3 px-2 text-xs">${p.is_active ? "🟢 啟用" : "🔴 停用"}</td>
+                    <td class="py-3 px-2 text-xs">${p.is_active ? "🟢 启用" : "🔴 停用"}</td>
                     <td class="py-3 px-2 text-right space-x-2">
-                        <button onclick="editProvider(${p.Id})" class="text-indigo-600 hover:underline">編輯</button>
-                        <button onclick="deleteItem('delete_provider', ${p.Id})" class="text-red-500 hover:underline">刪除</button>
+                        <button onclick="editProvider(${p.Id})" class="text-indigo-600 hover:underline">编辑</button>
+                        <button onclick="deleteItem('delete_provider', ${p.Id})" class="text-red-500 hover:underline">删除</button>
                     </td>
                 </tr>`,
 					)
@@ -183,8 +183,8 @@
                     <td class="py-3 px-2">${m.model_name} <br><span class="text-[10px] text-gray-400">${m.provider_name}</span></td>
                     <td class="py-3 px-2"><code>${m.model_alias}</code></td>
                     <td class="py-3 px-2 text-right space-x-2">
-                        <button onclick="editModel(${m.Id})" class="text-indigo-600 hover:underline">編輯</button>
-                        <button onclick="deleteItem('delete_model', ${m.Id})" class="text-red-500 hover:underline">刪除</button>
+                        <button onclick="editModel(${m.Id})" class="text-indigo-600 hover:underline">编辑</button>
+                        <button onclick="deleteItem('delete_model', ${m.Id})" class="text-red-500 hover:underline">删除</button>
                     </td>
                 </tr>`,
 					)
@@ -209,30 +209,30 @@
                     </td>
                     <td class="p-3 text-xs text-gray-500">${q.expire_time ? new Date(q.expire_time * 1000).toLocaleDateString() : "永久"}</td>
                     <td class="p-3 text-right">
-                        <button onclick="deleteItem('delete_quota', ${q.Id})" class="text-red-400 hover:text-red-600">移除授權</button>
+                        <button onclick="deleteItem('delete_quota', ${q.Id})" class="text-red-400 hover:text-red-600">移除授权</button>
                     </td>
                 </tr>`,
 					)
 					.join("");
 			}
 
-			// --- 編輯功能實作 ---
+			// --- 编辑功能实作 ---
 			function editProvider(id) {
 				const p = currentData.providers.find((x) => x.Id == id);
 				openModal(
-					"編輯提供商",
+					"编辑提供商",
 					"update_provider",
 					`
                 <input type="hidden" name="id" value="${p.Id}">
-                <label class="block text-sm">提供商名稱</label>
+                <label class="block text-sm">提供商名称</label>
                 <input type="text" name="provider_name" value="${p.provider_name}" class="w-full p-2 border mb-3 rounded">
                 <label class="block text-sm">Base URL</label>
                 <input type="text" name="base_url" value="${p.base_url}" class="w-full p-2 border mb-3 rounded">
                 <label class="block text-sm text-indigo-600 font-bold">API Key (留空表示不修改)</label>
-                <input type="password" name="api_key" placeholder="安全原因已隱藏，如需修改請輸入新 Key" class="w-full p-2 border mb-3 rounded bg-yellow-50">
-                <label class="block text-sm">狀態</label>
+                <input type="password" name="api_key" placeholder="安全原因已隐藏，如需修改请输入新 Key" class="w-full p-2 border mb-3 rounded bg-yellow-50">
+                <label class="block text-sm">状态</label>
                 <select name="is_active" class="w-full p-2 border rounded">
-                    <option value="1" ${p.is_active == 1 ? "selected" : ""}>啟用</option>
+                    <option value="1" ${p.is_active == 1 ? "selected" : ""}>启用</option>
                     <option value="0" ${p.is_active == 0 ? "selected" : ""}>禁用</option>
                 </select>
             `,
@@ -242,17 +242,17 @@
 			function editModel(id) {
 				const m = currentData.models.find((x) => x.Id == id);
 				openModal(
-					"編輯模型資訊",
+					"编辑模型资讯",
 					"update_model",
 					`
                 <input type="hidden" name="id" value="${m.Id}">
-                <label class="block text-sm">模型名稱</label>
+                <label class="block text-sm">模型名称</label>
                 <input type="text" name="model_name" value="${m.model_name}" class="w-full p-2 border mb-3 rounded">
-                <label class="block text-sm">API 標識碼</label>
+                <label class="block text-sm">API 标识码</label>
                 <input type="text" name="model_alias" value="${m.model_alias}" class="w-full p-2 border mb-3 rounded">
-                <label class="block text-sm">狀態</label>
+                <label class="block text-sm">状态</label>
                 <select name="is_active" class="w-full p-2 border rounded">
-                    <option value="1" ${m.is_active == 1 ? "selected" : ""}>啟用</option>
+                    <option value="1" ${m.is_active == 1 ? "selected" : ""}>启用</option>
                     <option value="0" ${m.is_active == 0 ? "selected" : ""}>禁用</option>
                 </select>
             `,
@@ -270,7 +270,7 @@
 			}
 
 			async function deleteItem(action, id) {
-				if (!confirm("確定要執行此操作嗎？這將無法復原。")) return;
+				if (!confirm("确定要执行此操作吗？这将无法复原。")) return;
 				request({ action, id });
 			}
 
@@ -289,11 +289,11 @@
 						showToast(res.message, "error");
 					}
 				} catch (e) {
-					showToast("操作失敗", "error");
+					showToast("操作失败", "error");
 				}
 			}
 
-			// Modal 邏輯
+			// Modal 逻辑
 			function openModal(title, action, html) {
 				document.getElementById("modal-title").innerText = title;
 				document.getElementById("modal-fields").innerHTML = html;
