@@ -3,30 +3,49 @@
 /**
  * AIService.php 
  * 内部 AI 调用核心类别
- * * 使用方式：
- * require_once 'database.php';
- * require_once 'AIService.php';
- * $aiService = new AIService($db);
  */
 
 class AIService
 {
     private $db;
 
-    /**
-     * @param PDO $databaseConnection 传入 database.php 中的 $db 实例
-     */
     public function __construct($databaseConnection)
     {
         $this->db = $databaseConnection;
     }
 
     /**
+     * 获取指定老师可用的所有 AI 模型
+     */
+    public function getAvailableModels($teacherId)
+    {
+        // 联表查询：查找老师有额度且未过期、且系统已启用的模型
+        $sql = "
+            SELECT m.model_alias, m.model_name, q.used_quota, q.max_quota 
+            FROM teacher_model_quotas q
+            JOIN ai_models m ON q.modelid = m.Id
+            WHERE q.teacherid = ? 
+            AND q.is_enabled = 1 
+            AND m.is_active = 1
+            AND (q.expire_time IS NULL OR q.expire_time > ?)
+        ";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([$teacherId, time()]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // 过滤掉已用完额度的 (max_quota = 0 表示无限)
+        $available = [];
+        foreach ($rows as $row) {
+            if ($row['max_quota'] == 0 || $row['used_quota'] < $row['max_quota']) {
+                $available[] = $row;
+            }
+        }
+        return $available;
+    }
+
+    /**
      * 调用 AI 模型的主要入口
-     * * @param int $teacherId 老师的 ID (从 require_teacher_auth() 获取)
-     * @param string $modelAlias 模型标识 (如 'gpt-4o', 'deepseek-v3')
-     * @param string $prompt 提示词内容
-     * @return array 执行结果
      */
     public function askAI($teacherId, $modelAlias, $prompt)
     {
@@ -68,9 +87,6 @@ class AIService
         }
     }
 
-    /**
-     * 从资料库验证模型标识
-     */
     private function getAndValidateModel($alias)
     {
         $stmt = $this->db->prepare("SELECT * FROM ai_models WHERE model_alias = ? AND is_active = 1 LIMIT 1");
@@ -78,9 +94,6 @@ class AIService
         return $stmt->fetch();
     }
 
-    /**
-     * 检查教师在特定模型上的授权记录
-     */
     private function checkTeacherQuota($teacherId, $modelId)
     {
         $stmt = $this->db->prepare("
@@ -104,7 +117,6 @@ class AIService
             return ['can_use' => false, 'reason' => '您的 AI 模型授权已过期。'];
         }
 
-        // max_quota = 0 代表无限额度
         if ($record['max_quota'] > 0 && $record['used_quota'] >= $record['max_quota']) {
             return ['can_use' => false, 'reason' => '您的使用额度已达上限。'];
         }
@@ -115,9 +127,6 @@ class AIService
         ];
     }
 
-    /**
-     * 获取 API 供应商配置
-     */
     private function getProviderConfig($providerId)
     {
         $stmt = $this->db->prepare("SELECT api_key, base_url FROM ai_providers WHERE Id = ? AND is_active = 1");
@@ -125,18 +134,12 @@ class AIService
         return $stmt->fetch();
     }
 
-    /**
-     * 更新额度使用记录
-     */
     private function consumeQuota($quotaId)
     {
         $stmt = $this->db->prepare("UPDATE teacher_model_quotas SET used_quota = used_quota + 1 WHERE Id = ?");
         $stmt->execute([$quotaId]);
     }
 
-    /**
-     * 封装 cURL 调用外部 AI API (OpenAI 兼容协议)
-     */
     private function callExternalApi($provider, $model, $prompt)
     {
         $ch = curl_init();
@@ -156,7 +159,7 @@ class AIService
             'Content-Type: application/json',
             'Authorization: Bearer ' . $provider['api_key']
         ]);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 60); // 设置超时时间
+        curl_setopt($ch, CURLOPT_TIMEOUT, 60);
 
         $result = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -182,34 +185,3 @@ class AIService
         throw new Exception("无法从 AI 回应中提取内容。");
     }
 }
-
-/* 
-<?php
-require_once 'database.php';   // 初始化 $db 连接与 auth 函数
-require_once 'AIService.php';  // 引入 AI 服务
-
-// 1. 强制教师身分验证，并获取教师资讯
-$teacher = require_teacher_auth(); 
-
-// 2. 初始化 AI 服务
-$aiService = new AIService($db);
-
-// 3. 获取前端提交的内容或从资料库读取的作业
-$studentWork = "这是学生的作业内容...";
-$prompt = "请以专业老师的角度，为以下作业提供 200 字以内的点评：" . $studentWork;
-
-// 4. 指定模型并调用 (此模型必须已在 ai_models 定义，且老师在 teacher_model_quotas 有额度)
-$response = $aiService->askAI($teacher['Id'], 'gpt-4o', $prompt);
-
-if ($response['success']) {
-    // 成功：将 $response['content'] 显示或存入 homeworkcheck 表
-    echo "AI 点评成功：" . $response['content'];
-} else {
-    // 失败：可能是额度不足、模型不存在或网络问题
-    echo "AI 调用失败：" . $response['error'];
-}
-
-这个设计完美结合了你现有的 `database.php`：
-1.  **身分连动**：直接使用 `require_teacher_auth()` 返回的 `$teacher['Id']` 进行权限比对。
-2.  **连线复用**：不需要重复创建 PDO 连接，减少资源消耗。
-3.  **模型隔离**：你可以随时在资料库中为某位老师单独开启 `deepseek-v3` 或关闭 `gpt-4`。
