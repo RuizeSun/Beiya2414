@@ -16,7 +16,7 @@ $submissionId = $_REQUEST['submission_id'] ?? null;
 $viewType = $_REQUEST['type'] ?? 'student'; // 关键：获取查看类型（student/teacher）
 
 // --- 图像处理函数 (保持不变) ---
-function process_and_compress_image(string $image_data, $target_short_side = 720, $quality = 20): ?string
+function process_and_compress_image(string $image_data, $target_short_side = 720, $quality = 50): ?string
 {
     try {
         $image = imagecreatefromstring($image_data);
