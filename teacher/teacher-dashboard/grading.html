@@ -263,8 +263,9 @@
 				const textPrompt = `你是一位专业的老师。
 作业题目：${currentHomeworkData.homework_title}
 老师的要求：${userInstruction || "请对作业进行评分并提供具体建议。"}
-
-请分析图片中的内容，直接返回 JSON 格式，包含 score (0-100) 和 comment (点评)。`;
+请分析图片中的内容，直接返回 JSON 格式，包含 score (0-100) 和 comment (点评)。
+点评需要简洁，控制在50字以内，不需要描述学生作业的内容，只需描述作业的不足之处。
+满足老师要求的且质量优秀的打100分，完全不满足老师要求的打0分（未提交对应照片、未完成等）。`;
 
 				try {
 					const res = await fetch(`${API}?action=ai_grade`, {
@@ -285,7 +286,8 @@
 								result = JSON.parse(result.replace(/```json|```/g, ""));
 							} catch (e) {}
 						}
-						document.getElementById("gradeScore").value = result.score || "";
+						console.log(result);
+						document.getElementById("gradeScore").value = result.score || "0";
 						document.getElementById("gradeContent").value = result.comment || result.content || (typeof result === "string" ? result : "");
 					} else {
 						alert("AI 失败: " + json.message);
