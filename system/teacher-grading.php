@@ -327,7 +327,7 @@ elseif ($action === 'submit_grade') {
     $input = json_decode(file_get_contents('php://input'), true);
     $submissionId = $input['submission_id'] ?? null;
     $score = $input['score'] ?? 0;
-    $content = $input['content'] ?? '';
+    $content = $input['comment'] ?? '';
     $checkImageBase64 = $input['check_image'] ?? null;
 
     try {

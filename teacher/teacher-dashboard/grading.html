@@ -141,7 +141,11 @@
 			let currentId = null;
 			let currentHomeworkData = null;
 
-			let currentListItems = [];
+			let currentHomeworkItems = [];
+			let currentSubmissionItems = [];
+			let selectedSet = new Set();
+			let _visionAlerted = false;
+
 			const canvas = document.getElementById("grading-canvas");
 			const ctx = canvas.getContext("2d");
 			const img = document.getElementById("studentWorkImg");
@@ -163,7 +167,7 @@
 					// 保留第一个“全部作业”选项
 					select.innerHTML = `<option value="0">全部作业（本学科）</option>`;
 					if (json.status === "success") {
-						currentListItems = json.data || [];
+						currentHomeworkItems = json.data || [];
 						const selAll = document.getElementById("selectAllBox");
 						if (selAll) selAll.checked = false;
 						json.data.forEach((h) => {
@@ -182,25 +186,67 @@
 				}
 			}
 
-			async;
 			function toggleSelectAll(checked) {
-				document.querySelectorAll(".submissionCheck").forEach((cb) => {
-					cb.checked = checked;
-				});
+				const all = Array.from(document.querySelectorAll(".submissionCheck"));
+				const selectAll = document.getElementById("selectAllBox");
+				// 同步 UI
+				all.forEach((cb) => (cb.checked = checked));
+				if (selectAll) selectAll.checked = !!checked;
+
+				// 同步状态集合
+				selectedSet.clear();
+				if (checked) {
+					all.forEach((cb) => {
+						const id = cb.getAttribute("data-submission-id");
+						if (id) selectedSet.add(String(id));
+					});
+				}
 			}
 
 			function syncSelectAllState() {
 				const all = Array.from(document.querySelectorAll(".submissionCheck"));
-				if (!all.length) return;
-				const checked = all.filter((cb) => cb.checked).length;
 				const selectAll = document.getElementById("selectAllBox");
+				if (!all.length) {
+					if (selectAll) selectAll.checked = false;
+					return;
+				}
+				const checked = all.filter((cb) => cb.checked).length;
 				if (selectAll) selectAll.checked = checked === all.length;
 			}
 
+			function onSubmissionCheckChange(cb) {
+				const id = cb.getAttribute("data-submission-id");
+				if (!id) return;
+				if (cb.checked) selectedSet.add(String(id));
+				else selectedSet.delete(String(id));
+				syncSelectAllState();
+			}
+
 			function getSelectedSubmissionIds() {
-				return Array.from(document.querySelectorAll(".submissionCheck"))
-					.filter((cb) => cb.checked)
-					.map((cb) => cb.getAttribute("data-submission-id"));
+				return Array.from(selectedSet);
+			}
+
+			function buildGradePrompt(homeworkTitle, userInstruction) {
+				return `你是一位专业的老师。
+作业题目：${homeworkTitle || ""}
+老师的要求：${userInstruction || "请对作业进行评分并提供具体建议。"}
+请分析图片中的内容，直接返回 JSON 格式，包含 score (0-100) 和 comment (点评)。
+点评需要简洁，控制在50字以内，不需要描述学生作业的内容，只需描述作业的不足之处。
+满足老师要求的且质量优秀的打100分，完全不满足老师要求的打0分（未提交对应照片、未完成等）。`;
+			}
+
+			function handleVisionModelError(msg) {
+				const s = String(msg || "");
+				// 典型：AI 供应商错误: No endpoints found that support image input
+				const isVisionError = /No endpoints found that support image input/i.test(s) || /support image input/i.test(s) || /no endpoints.*image/i.test(s) || (/vision/i.test(s) && /image/i.test(s));
+				if (isVisionError) {
+					if (!_visionAlerted) {
+						alert("当前模型无视觉功能，无法处理作业图片。请在模型列表中选择带视觉功能（VL）的模型后重试。");
+						_visionAlerted = true;
+					}
+					return true;
+				}
+				return false;
 			}
 
 			async function batchAICorrectSelected() {
@@ -219,7 +265,7 @@
 
 				// 从当前列表中取出对应 item，拿到 student_image 等信息
 				const idSet = new Set(selectedIds.map(String));
-				const items = (currentListItems || []).filter((it) => idSet.has(String(it.submission_id)));
+				const items = (currentSubmissionItems || []).filter((it) => idSet.has(String(it.submission_id)));
 
 				if (!items.length) {
 					alert("未找到已选提交的数据，请先点击“筛选”刷新列表");
@@ -234,9 +280,13 @@
 				const progress = document.getElementById("batchProgress");
 				progress.classList.remove("hidden");
 
+				_visionAlerted = false;
+
 				let done = 0,
 					ok = 0,
 					fail = 0;
+
+				let stopBecauseNoVision = false;
 
 				for (const item of items) {
 					done++;
@@ -250,12 +300,19 @@
 							body: JSON.stringify({
 								submission_id: item.submission_id,
 								model_alias: modelAlias,
-								prompt: userInstruction,
+								prompt: buildGradePrompt(item.homework_title, userInstruction),
 								student_image: item.student_image,
 							}),
 						});
 						const aiJson = await aiRes.json();
-						if (aiJson.status !== "success") throw new Error(aiJson.message || "AI 批改失败");
+						if (aiJson.status !== "success") {
+							// 如果是模型不支持图片输入，提示并终止批量
+							if (handleVisionModelError(aiJson.message || aiJson.data)) {
+								stopBecauseNoVision = true;
+								throw new Error(aiJson.message || "所选模型无视觉功能");
+							}
+							throw new Error(aiJson.message || "AI 批改失败");
+						}
 
 						// 2) 解析 AI 输出（尽量兼容：JSON / 文本中包含 JSON）
 						let parsed = null;
@@ -288,11 +345,16 @@
 						ok++;
 					} catch (err) {
 						console.error("Batch item failed", item, err);
+						// 若检测到无视觉功能，给出明确提示并停止继续请求
+						if (handleVisionModelError(err && err.message)) {
+							stopBecauseNoVision = true;
+							break;
+						}
 						fail++;
 					}
 				}
 
-				progress.textContent = `批量批改完成：共 ${items.length}，成功 ${ok}，失败 ${fail}`;
+				progress.textContent = stopBecauseNoVision ? `批量批改已停止：当前所选模型无视觉功能（不支持图片输入）。请改用带视觉（VL）的模型后重试。` : `批量批改完成：共 ${items.length}，成功 ${ok}，失败 ${fail}`;
 				setTimeout(() => progress.classList.add("hidden"), 2500);
 			}
 
@@ -313,6 +375,8 @@
 
 				const progress = document.getElementById("batchProgress");
 				progress.classList.remove("hidden");
+
+				_visionAlerted = false;
 				progress.textContent = "正在获取批量范围...";
 
 				try {
@@ -343,22 +407,35 @@
 				const name = document.getElementById("searchName").value;
 				const date = document.getElementById("searchDate").value;
 				const status = document.getElementById("statusFilter").value;
+
+				// 刷新列表时重置“全选/已选”状态，避免出现“全选仍勾选但列表未选中”的错觉
+				selectedSet.clear();
+				const selectAll = document.getElementById("selectAllBox");
+				if (selectAll) selectAll.checked = false;
+
 				try {
 					const homeworkId = document.getElementById("homeworkSelect").value || 0;
 					const res = await fetch(`${API}?action=list&student_name=${encodeURIComponent(name)}&date=${date}&status=${status}&homework_id=${homeworkId}`);
 					const json = await res.json();
 					const container = document.getElementById("homework-list");
 					container.innerHTML = "";
+
 					if (json.status === "success") {
-						json.data.forEach((item) => {
+						currentSubmissionItems = json.data || [];
+
+						currentSubmissionItems.forEach((item) => {
 							const card = document.createElement("div");
 							card.className = "bg-white rounded-xl shadow-sm border p-4 hover:shadow-md transition cursor-pointer relative group";
 							card.onclick = () => openModal(item);
+
 							const statusBadge = item.score !== null ? `<span class="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-bold">已批改 ${item.score}分</span>` : `<span class="bg-orange-100 text-orange-700 text-[10px] px-2 py-0.5 rounded-full font-bold">待批改</span>`;
+
 							const displayName = item.student_name || `${item.lastname}${item.firstname}`;
+							const isChecked = selectedSet.has(String(item.submission_id));
+
 							card.innerHTML = `
 								<div class="absolute top-3 left-3 z-10" onclick="event.stopPropagation()">
-									<input type="checkbox" class="submissionCheck w-4 h-4" data-submission-id="${item.submission_id}" onchange="syncSelectAllState()" />
+									<input type="checkbox" class="submissionCheck w-4 h-4" data-submission-id="${item.submission_id}" ${isChecked ? "checked" : ""} onchange="onSubmissionCheckChange(this)" />
 								</div>
 
 								<div class="aspect-video bg-gray-100 rounded-lg mb-3 overflow-hidden border">
@@ -410,7 +487,7 @@
 				document.getElementById("modalTitle").innerText = `${displayName} 的作业`;
 				document.getElementById("modalSubTitle").innerText = data.homework_title;
 				document.getElementById("gradeScore").value = data.score !== null ? data.score : "";
-				document.getElementById("gradeContent").value = data.comment || "";
+				document.getElementById("gradeContent").value = data.comment || data.content || "";
 				img.src = data.student_image;
 				document.getElementById("gradeModal").classList.remove("hidden");
 				document.body.classList.add("modal-active");
@@ -476,6 +553,8 @@
 				const overlay = document.getElementById("aiLoading");
 				overlay.classList.remove("hidden");
 
+				_visionAlerted = false;
+
 				// 优化：Prompt 仅保留文字要求，不再嵌入 Base64 数据
 				const textPrompt = `你是一位专业的老师。
 作业题目：${currentHomeworkData.homework_title}
@@ -507,10 +586,14 @@
 						document.getElementById("gradeScore").value = result.score || "0";
 						document.getElementById("gradeContent").value = result.comment || result.content || (typeof result === "string" ? result : "");
 					} else {
-						alert("AI 失败: " + json.message);
+						if (!handleVisionModelError(json.message || json.data)) {
+							alert("AI 失败: " + (json.message || "未知错误"));
+						}
 					}
 				} catch (e) {
-					alert("请求失败");
+					if (!handleVisionModelError(e && e.message)) {
+						alert("请求失败");
+					}
 				}
 				overlay.classList.add("hidden");
 			}
@@ -527,7 +610,7 @@
 					const res = await fetch(`${API}?action=submit_grade`, {
 						method: "POST",
 						headers: { "Content-Type": "application/json" },
-						body: JSON.stringify({ submission_id: currentId, score: score, content: content, check_image: drawingData }),
+						body: JSON.stringify({ submission_id: currentId, score: score, content: content, comment: content, check_image: drawingData }),
 					});
 					const json = await res.json();
 					if (json.status === "success") {
