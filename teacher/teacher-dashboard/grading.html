@@ -51,6 +51,27 @@
 						<option value="ungraded">未批改</option>
 						<option value="graded">已批改</option>
 					</select>
+
+					<select id="homeworkSelect" class="border rounded px-3 py-2 text-sm outline-none">
+						<option value="0">全部作业（本学科）</option>
+					</select>
+
+					<!-- 批量AI批改配置（模型 + Prompt） -->
+					<select id="batchAiModelSelect" class="border rounded px-3 py-2 text-sm outline-none min-w-[160px]">
+						<option value="">载入模型中...</option>
+					</select>
+					<input id="batchPrompt" class="border rounded px-3 py-2 text-sm outline-none w-72" placeholder="批量批改 Prompt（可选，例如：按语法/结构/逻辑评分，并给改进建议）" />
+
+					<label class="inline-flex items-center gap-2 text-sm text-gray-600 select-none">
+						<input id="selectAllBox" type="checkbox" class="w-4 h-4" onchange="toggleSelectAll(this.checked)" />
+						全选
+					</label>
+
+					<button onclick="batchAICorrectSelected()" class="bg-purple-600 text-white px-4 py-2 rounded text-sm hover:bg-purple-700 transition">批量AI批改（已选）</button>
+					<button onclick="batchAICorrectByHomework()" class="bg-purple-50 text-purple-700 border border-purple-200 px-4 py-2 rounded text-sm hover:bg-purple-100 transition">批量AI批改（整份作业）</button>
+
+					<span id="batchProgress" class="text-xs text-gray-600 hidden"></span>
+
 					<button onclick="fetchList()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition">筛选</button>
 				</div>
 			</div>
@@ -119,23 +140,212 @@
 			const API = "/system/teacher-grading.php";
 			let currentId = null;
 			let currentHomeworkData = null;
+
+			let currentListItems = [];
 			const canvas = document.getElementById("grading-canvas");
 			const ctx = canvas.getContext("2d");
 			const img = document.getElementById("studentWorkImg");
 			let isDrawing = false;
 
 			window.onload = () => {
+				fetchHomeworkList();
 				fetchList();
 				fetchAIModels();
 				initCanvas();
 			};
+
+			async function fetchHomeworkList() {
+				try {
+					const res = await fetch(`${API}?action=homework_list`);
+					const json = await res.json();
+					const select = document.getElementById("homeworkSelect");
+					if (!select) return;
+					// 保留第一个“全部作业”选项
+					select.innerHTML = `<option value="0">全部作业（本学科）</option>`;
+					if (json.status === "success") {
+						currentListItems = json.data || [];
+						const selAll = document.getElementById("selectAllBox");
+						if (selAll) selAll.checked = false;
+						json.data.forEach((h) => {
+							const opt = document.createElement("option");
+							opt.value = h.homework_id;
+							const timeRange = h.releasetime ? `（${h.releasetime}${h.stoptime ? " ~ " + h.stoptime : ""}）` : "";
+							opt.textContent = `${h.title || "未命名作业"} - ${h.creator_name || ""}${timeRange}`;
+							select.appendChild(opt);
+							if (batchSelect) batchSelect.appendChild(opt.cloneNode(true));
+						});
+					}
+					// 改变作业选择时自动刷新列表
+					select.onchange = () => fetchList();
+				} catch (e) {
+					console.warn("fetchHomeworkList failed", e);
+				}
+			}
+
+			async;
+			function toggleSelectAll(checked) {
+				document.querySelectorAll(".submissionCheck").forEach((cb) => {
+					cb.checked = checked;
+				});
+			}
+
+			function syncSelectAllState() {
+				const all = Array.from(document.querySelectorAll(".submissionCheck"));
+				if (!all.length) return;
+				const checked = all.filter((cb) => cb.checked).length;
+				const selectAll = document.getElementById("selectAllBox");
+				if (selectAll) selectAll.checked = checked === all.length;
+			}
+
+			function getSelectedSubmissionIds() {
+				return Array.from(document.querySelectorAll(".submissionCheck"))
+					.filter((cb) => cb.checked)
+					.map((cb) => cb.getAttribute("data-submission-id"));
+			}
+
+			async function batchAICorrectSelected() {
+				const modelAlias = document.getElementById("batchAiModelSelect")?.value;
+				const userInstruction = document.getElementById("batchPrompt")?.value?.trim() || "";
+				if (!modelAlias) {
+					alert("请先选择批量批改模型");
+					return;
+				}
+
+				const selectedIds = getSelectedSubmissionIds();
+				if (!selectedIds.length) {
+					alert("请先勾选要批改的提交（可用“全选”）");
+					return;
+				}
+
+				// 从当前列表中取出对应 item，拿到 student_image 等信息
+				const idSet = new Set(selectedIds.map(String));
+				const items = (currentListItems || []).filter((it) => idSet.has(String(it.submission_id)));
+
+				if (!items.length) {
+					alert("未找到已选提交的数据，请先点击“筛选”刷新列表");
+					return;
+				}
+
+				await runBatchAI(items, modelAlias, userInstruction);
+				await fetchList();
+			}
+
+			async function runBatchAI(items, modelAlias, userInstruction) {
+				const progress = document.getElementById("batchProgress");
+				progress.classList.remove("hidden");
+
+				let done = 0,
+					ok = 0,
+					fail = 0;
+
+				for (const item of items) {
+					done++;
+					progress.textContent = `批量批改中：${done}/${items.length}（成功 ${ok}，失败 ${fail}）...`;
+
+					try {
+						// 1) AI 批改
+						const aiRes = await fetch(`${API}?action=ai_grade`, {
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({
+								submission_id: item.submission_id,
+								model_alias: modelAlias,
+								prompt: userInstruction,
+								student_image: item.student_image,
+							}),
+						});
+						const aiJson = await aiRes.json();
+						if (aiJson.status !== "success") throw new Error(aiJson.message || "AI 批改失败");
+
+						// 2) 解析 AI 输出（尽量兼容：JSON / 文本中包含 JSON）
+						let parsed = null;
+						try {
+							parsed = JSON.parse(aiJson.data);
+						} catch (e) {
+							const m = String(aiJson.data).match(/\{[\s\S]*\}/);
+							if (m) parsed = JSON.parse(m[0]);
+						}
+						if (!parsed) throw new Error("AI 输出无法解析为 JSON（请让模型输出 JSON：{score, comment}）");
+
+						const score = parsed.score ?? parsed.Score ?? parsed.points ?? null;
+						const comment = parsed.comment ?? parsed.Comment ?? parsed.feedback ?? parsed.reason ?? "";
+
+						if (score === null || score === undefined) throw new Error("AI 输出缺少 score 字段");
+
+						// 3) 保存批改结果
+						const saveRes = await fetch(`${API}?action=submit_grade`, {
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({
+								submission_id: item.submission_id,
+								score: score,
+								comment: comment,
+							}),
+						});
+						const saveJson = await saveRes.json();
+						if (saveJson.status !== "success") throw new Error(saveJson.message || "保存失败");
+
+						ok++;
+					} catch (err) {
+						console.error("Batch item failed", item, err);
+						fail++;
+					}
+				}
+
+				progress.textContent = `批量批改完成：共 ${items.length}，成功 ${ok}，失败 ${fail}`;
+				setTimeout(() => progress.classList.add("hidden"), 2500);
+			}
+
+			async function batchAICorrectByHomework() {
+				const homeworkId = document.getElementById("homeworkSelect").value || 0;
+				if (String(homeworkId) === "0") {
+					alert("请先在下拉框选择一个具体作业，才能批量AI批改。");
+					return;
+				}
+				const status = document.getElementById("statusFilter").value || "all";
+				const modelAlias = document.getElementById("batchAiModelSelect")?.value;
+				const userInstruction = document.getElementById("batchPrompt")?.value?.trim() || "";
+
+				if (!modelAlias) {
+					alert("请先在顶部选择批量批改模型。");
+					return;
+				}
+
+				const progress = document.getElementById("batchProgress");
+				progress.classList.remove("hidden");
+				progress.textContent = "正在获取批量范围...";
+
+				try {
+					const res = await fetch(`${API}?action=batch_scope&homework_id=${homeworkId}&status=${status}`);
+					const json = await res.json();
+					if (json.status !== "success") {
+						progress.classList.add("hidden");
+						alert(json.message || "获取批量范围失败");
+						return;
+					}
+
+					const items = json.data.items || [];
+					if (items.length === 0) {
+						progress.classList.add("hidden");
+						alert("该作业暂无符合条件的提交。");
+						return;
+					}
+
+					await runBatchAI(items, modelAlias, userInstruction);
+					await fetchList();
+				} catch (e) {
+					progress.classList.add("hidden");
+					alert("批量批改异常：" + (e?.message || e));
+				}
+			}
 
 			async function fetchList() {
 				const name = document.getElementById("searchName").value;
 				const date = document.getElementById("searchDate").value;
 				const status = document.getElementById("statusFilter").value;
 				try {
-					const res = await fetch(`${API}?action=list&student_name=${encodeURIComponent(name)}&date=${date}&status=${status}`);
+					const homeworkId = document.getElementById("homeworkSelect").value || 0;
+					const res = await fetch(`${API}?action=list&student_name=${encodeURIComponent(name)}&date=${date}&status=${status}&homework_id=${homeworkId}`);
 					const json = await res.json();
 					const container = document.getElementById("homework-list");
 					container.innerHTML = "";
@@ -147,6 +357,10 @@
 							const statusBadge = item.score !== null ? `<span class="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full font-bold">已批改 ${item.score}分</span>` : `<span class="bg-orange-100 text-orange-700 text-[10px] px-2 py-0.5 rounded-full font-bold">待批改</span>`;
 							const displayName = item.student_name || `${item.lastname}${item.firstname}`;
 							card.innerHTML = `
+								<div class="absolute top-3 left-3 z-10" onclick="event.stopPropagation()">
+									<input type="checkbox" class="submissionCheck w-4 h-4" data-submission-id="${item.submission_id}" onchange="syncSelectAllState()" />
+								</div>
+
 								<div class="aspect-video bg-gray-100 rounded-lg mb-3 overflow-hidden border">
 									<img src="${item.student_image}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/400x300?text=No+Image'">
 								</div>
@@ -170,13 +384,16 @@
 					const res = await fetch(`${API}?action=get_ai_models`);
 					const json = await res.json();
 					const select = document.getElementById("aiModelSelect");
+					const batchSelect = document.getElementById("batchAiModelSelect");
 					select.innerHTML = "";
+					if (batchSelect) batchSelect.innerHTML = "";
 					if (json.status === "success" && json.data.length > 0) {
 						json.data.forEach((m) => {
 							const opt = document.createElement("option");
 							opt.value = m.model_alias;
 							opt.innerText = m.model_name;
 							select.appendChild(opt);
+							if (batchSelect) batchSelect.appendChild(opt.cloneNode(true));
 						});
 					} else {
 						select.innerHTML = '<option value="">未授权 AI 模型</option>';

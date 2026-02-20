@@ -30,6 +30,7 @@ if ($action === 'list') {
         $studentName = $_GET['student_name'] ?? '';
         $dateFilter = $_GET['date'] ?? '';
         $statusFilter = $_GET['status'] ?? 'all';
+        $homeworkId = isset($_GET['homework_id']) ? intval($_GET['homework_id']) : 0;
 
         $currentSubject = $teacher['subject'] ?? '';
         if (empty($currentSubject)) {
@@ -54,6 +55,12 @@ if ($action === 'list') {
                 WHERE creator.subject = :subject";
 
         $params = [':subject' => $currentSubject];
+
+        // 仅当指定 homework_id 时才加过滤，避免同名占位符重复导致 PDO HY093
+        if ($homeworkId > 0) {
+            $sql .= " AND h.Id = :homework_id";
+            $params[':homework_id'] = $homeworkId;
+        }
 
         if (!empty($studentName)) {
             $sql .= " AND (s.firstname LIKE :sname OR s.lastname LIKE :sname OR CONCAT(s.lastname, s.firstname) LIKE :sname)";
@@ -87,19 +94,181 @@ if ($action === 'list') {
             }
             return [
                 'submission_id' => (int)$row['submission_id'],
-                'student_name' => $row['lastname'] . $row['firstname'],
-                'homework_title' => $row['homework_title'],
-                'submit_time' => date('Y-m-d H:i', (int)$row['submit_time']),
+                'student_name' => ($row['lastname'] ?? '') . ($row['firstname'] ?? ''),
+                'homework_title' => $row['homework_title'] ?? '',
+                'submit_time' => !empty($row['submit_time']) ? date('Y-m-d H:i', (int)$row['submit_time']) : null,
+                'student_image' => $imageBase64,
+                'score' => $row['score'] ?? null,
+                'comment' => $row['teacher_comment'] ?? ''
+            ];
+        }, $rows);
+
+        echo json_encode(['status' => 'success', 'data' => $result], JSON_UNESCAPED_UNICODE);
+    } catch (PDOException $e) {
+        error_log("Database Error in list: " . $e->getMessage());
+        echo json_encode(['status' => 'error', 'message' => '资料库查询失败'], JSON_UNESCAPED_UNICODE);
+    }
+}
+
+/**
+ * 动作 1.5:/**
+ * 动作 1.5: 获取可选择的作业清单（本人或同科目老师布置）
+ * 供前端“批量批改范围筛选”使用
+ */
+elseif ($action === 'homework_list') {
+    try {
+        $currentSubject = $teacher['subject'] ?? '';
+        $isAdmin = (int)($teacher['isAdmin'] ?? 0) === 1;
+
+        if (!$isAdmin && empty($currentSubject)) {
+            echo json_encode(['status' => 'error', 'message' => '您的帐号未设置科目，无法获取作业清单']);
+            exit;
+        }
+
+        if ($isAdmin) {
+            $sql = "SELECT h.Id AS homework_id, h.title, h.releasetime, h.stoptime,
+                           CONCAT(IFNULL(t.lastname,''), IFNULL(t.firstname,'')) AS creator_name,
+                           IFNULL(t.subject,'') AS subject
+                    FROM homework h
+                    LEFT JOIN teachers t ON h.teacherid = t.Id
+                    ORDER BY h.releasetime DESC";
+            $stmt = $db->prepare($sql);
+            $stmt->execute();
+        } else {
+            $sql = "SELECT h.Id AS homework_id, h.title, h.releasetime, h.stoptime,
+                           CONCAT(IFNULL(t.lastname,''), IFNULL(t.firstname,'')) AS creator_name
+                    FROM homework h
+                    JOIN teachers t ON h.teacherid = t.Id
+                    WHERE t.subject = :subject
+                    ORDER BY h.releasetime DESC";
+            $stmt = $db->prepare($sql);
+            $stmt->execute([':subject' => $currentSubject]);
+        }
+
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $result = array_map(function ($r) {
+            return [
+                'homework_id' => (int)$r['homework_id'],
+                'title' => $r['title'] ?? '',
+                'creator_name' => $r['creator_name'] ?? '',
+                'releasetime' => !empty($r['releasetime']) ? date('Y-m-d H:i', (int)$r['releasetime']) : null,
+                'stoptime' => !empty($r['stoptime']) ? date('Y-m-d H:i', (int)$r['stoptime']) : null,
+            ];
+        }, $rows);
+
+        echo json_encode(['status' => 'success', 'data' => $result], JSON_UNESCAPED_UNICODE);
+    } catch (PDOException $e) {
+        error_log("Database Error in homework_list: " . $e->getMessage());
+        error_log("Database Error in homework_list: " . $e->getMessage());
+        echo json_encode(['status' => 'error', 'message' => '资料库查询失败'], JSON_UNESCAPED_UNICODE);
+    }
+}
+
+/**
+ * 动作 1.6: 批量批改范围筛选（选择某作业下的所有提交）
+ * 规则：该作业必须是老师本人布置或同科目老师布置的（管理员可查看全部）
+ * 返回：符合筛选条件的提交列表（含 submission_id 与 student_image Base64）
+ */
+elseif ($action === 'batch_scope') {
+    try {
+        $homeworkId = isset($_GET['homework_id']) ? intval($_GET['homework_id']) : 0;
+        $statusFilter = $_GET['status'] ?? 'all'; // all | graded | ungraded
+
+        if ($homeworkId <= 0) {
+            echo json_encode(['status' => 'error', 'message' => '缺少 homework_id']);
+            exit;
+        }
+
+        $currentSubject = $teacher['subject'] ?? '';
+        $isAdmin = (int)($teacher['isAdmin'] ?? 0) === 1;
+
+        // 1) 权限校验：作业必须是本人布置或同科目老师布置（管理员跳过）
+        if (!$isAdmin) {
+            if (empty($currentSubject)) {
+                echo json_encode(['status' => 'error', 'message' => '您的帐号未设置科目，无法批量批改']);
+                exit;
+            }
+
+            $stmt = $db->prepare("SELECT h.Id
+                                  FROM homework h
+                                  JOIN teachers creator ON h.teacherid = creator.Id
+                                  WHERE h.Id = :hid
+                                    AND (h.teacherid = :tid OR creator.subject = :subject)
+                                  LIMIT 1");
+            $stmt->execute([
+                ':hid' => $homeworkId,
+                ':tid' => $teacher['Id'],
+                ':subject' => $currentSubject,
+            ]);
+            $allowed = $stmt->fetchColumn();
+
+            if (!$allowed) {
+                echo json_encode(['status' => 'error', 'message' => '无权批改：该作业不是您本人或同科目老师布置']);
+                exit;
+            }
+        }
+
+        // 2) 拉取提交列表
+        $sql = "SELECT 
+                    hs.Id AS submission_id,
+                    hs.time AS submit_time,
+                    hs.submission AS student_image,
+                    h.title AS homework_title,
+                    s.firstname,
+                    s.lastname,
+                    hc.score,
+                    hc.content AS teacher_comment
+                FROM homeworksubmission hs
+                JOIN homework h ON hs.homeworkid = h.Id
+                JOIN students s ON hs.studentid = s.Id
+                LEFT JOIN homeworkcheck hc ON hs.Id = hc.submissionid
+                WHERE hs.homeworkid = :hid";
+
+        $params = [':hid' => $homeworkId];
+
+        if ($statusFilter === 'graded') {
+            $sql .= " AND hc.Id IS NOT NULL";
+        } elseif ($statusFilter === 'ungraded') {
+            $sql .= " AND hc.Id IS NULL";
+        }
+
+        $sql .= " ORDER BY hs.time DESC";
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $result = array_map(function ($row) {
+            $imageBase64 = '';
+            if (!empty($row['student_image'])) {
+                $imageBase64 = 'data:image/jpeg;base64,' . base64_encode($row['student_image']);
+            }
+            return [
+                'submission_id' => (int)$row['submission_id'],
+                'student_name' => ($row['lastname'] ?? '') . ($row['firstname'] ?? ''),
+                'homework_title' => $row['homework_title'] ?? '',
+                'submit_time' => !empty($row['submit_time']) ? date('Y-m-d H:i', (int)$row['submit_time']) : null,
                 'student_image' => $imageBase64,
                 'score' => $row['score'],
                 'comment' => $row['teacher_comment'] ?? ''
             ];
         }, $rows);
 
-        echo json_encode(['status' => 'success', 'data' => $result]);
+        echo json_encode([
+            'status' => 'success',
+            'data' => [
+                'homework_id' => $homeworkId,
+                'total' => count($result),
+                'items' => $result,
+                'submission_ids' => array_map(function ($x) {
+                    return $x['submission_id'];
+                }, $result)
+            ]
+        ], JSON_UNESCAPED_UNICODE);
     } catch (PDOException $e) {
-        error_log("Database Error in list: " . $e->getMessage());
-        echo json_encode(['status' => 'error', 'message' => '资料库连线失败']);
+        error_log("Database Error in batch_scope: " . $e->getMessage());
+        error_log("Database Error in homework_list: " . $e->getMessage());
+        echo json_encode(['status' => 'error', 'message' => '资料库查询失败'], JSON_UNESCAPED_UNICODE);
     }
 }
 
