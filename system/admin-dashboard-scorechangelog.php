@@ -21,7 +21,7 @@ try {
             // 获取变动记录列表 (包含所有筛选逻辑)
             // ----------------------------------------
             $offset = (int)($_GET['offset'] ?? 0);
-            $studentId = trim($_GET['studentId'] ?? ''); // 获取学生 ID，可能是空字串
+            $studentId = trim($_GET['studentId'] ?? ''); // 获取学号，可能是空字串
             $reasonFilter = trim($_GET['reason'] ?? '');
             $startDate = (int)($_GET['startDate'] ?? 0);
             $endDate = (int)($_GET['endDate'] ?? 0);
@@ -29,7 +29,7 @@ try {
             $params = [];
             $whereClauses = ["1=1"];
 
-            // 1. 学生 ID 筛选 (如果为空，则显示所有学生)
+            // 1. 学号 筛选 (如果为空，则显示所有学生)
             if (!empty($studentId)) {
                 $whereClauses[] = "scl.studentid = ?";
                 $params[] = $studentId;
@@ -199,7 +199,7 @@ try {
             // 如果学生不存在，则回滚
             $db->rollBack();
             http_response_code(404);
-            echo json_encode(["status" => "error", "message" => "学生 ID 无效，撤销失败"]);
+            echo json_encode(["status" => "error", "message" => "学号 无效，撤销失败"]);
             exit();
         }
 

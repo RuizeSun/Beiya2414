@@ -3,7 +3,6 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>AI 管理控制台</title>
 		<script src="https://cdn.tailwindcss.com"></script>
 		<style>
 			.modal {
@@ -23,7 +22,7 @@
 				<div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
 					<h2 class="text-lg font-semibold mb-4 text-gray-700 border-b pb-2">1. AI 提供商</h2>
 					<form onsubmit="handleSubmit(event, 'add_provider')" class="space-y-3 mb-6">
-						<input type="text" name="provider_name" placeholder="名称 (如: OpenAI, OpenRouter)" class="w-full p-2 border rounded text-sm" required />
+						<input type="text" name="provider_name" placeholder="名称 (如: 阿里云, DeepSeek, OpenAI)" class="w-full p-2 border rounded text-sm" required />
 						<input type="text" name="base_url" placeholder="API Base URL" class="w-full p-2 border rounded text-sm" required />
 						<input type="password" name="api_key" placeholder="API Key" class="w-full p-2 border rounded text-sm" required />
 						<button type="submit" class="w-full bg-indigo-600 text-white py-2 rounded text-sm hover:bg-indigo-700">添加提供商</button>
@@ -47,8 +46,8 @@
 					<h2 class="text-lg font-semibold mb-4 text-gray-700 border-b pb-2">2. AI 模型清单</h2>
 					<form onsubmit="handleSubmit(event, 'add_model')" class="space-y-3 mb-6">
 						<select name="provider_id" id="provider-select" class="w-full p-2 border rounded text-sm" required></select>
-						<input type="text" name="model_name" placeholder="显示名称 (如: GPT-4o)" class="w-full p-2 border rounded text-sm" required />
-						<input type="text" name="model_alias" placeholder="API 标识码 (如: gpt-4o)" class="w-full p-2 border rounded text-sm" required />
+						<input type="text" name="model_name" placeholder="显示名称 (如: Qwen 2.5 VL 8B)" class="w-full p-2 border rounded text-sm" required />
+						<input type="text" name="model_alias" placeholder="API 标识码 (如: qwen-2.5-vl:8b)" class="w-full p-2 border rounded text-sm" required />
 						<button type="submit" class="w-full bg-blue-600 text-white py-2 rounded text-sm hover:bg-blue-700">添加模型</button>
 					</form>
 					<div class="overflow-x-auto">
@@ -67,10 +66,10 @@
 
 				<!-- 3. 权限与配额 -->
 				<div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2">
-					<h2 class="text-lg font-semibold mb-4 text-gray-700 border-b pb-2">3. 老师额度分配与监控</h2>
+					<h2 class="text-lg font-semibold mb-4 text-gray-700 border-b pb-2">3. 教师额度分配与监控</h2>
 					<form onsubmit="handleSubmit(event, 'set_quota')" class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8 items-end bg-gray-50 p-4 rounded-lg">
 						<div class="md:col-span-1">
-							<label class="block text-xs mb-1 text-gray-500">选择老师</label>
+							<label class="block text-xs mb-1 text-gray-500">选择教师</label>
 							<select name="teacherid" id="teacher-select" class="w-full p-2 border rounded text-sm" required></select>
 						</div>
 						<div class="md:col-span-1">
@@ -93,7 +92,7 @@
 						<table class="w-full text-sm">
 							<thead class="bg-gray-100 text-gray-600">
 								<tr>
-									<th class="p-3 text-left">老师姓名</th>
+									<th class="p-3 text-left">教师姓名</th>
 									<th class="p-3 text-left">已授权模型</th>
 									<th class="p-3 text-center">已用 / 总额</th>
 									<th class="p-3 text-left">到期日</th>

@@ -1,9 +1,8 @@
 <!doctype html>
-<html lang="zh-TW">
+<html lang="zh-CN">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-		<title>教师批改系统 (含 AI 辅助与绘图)</title>
 		<script src="https://cdn.tailwindcss.com"></script>
 		<style>
 			.no-scrollbar::-webkit-scrollbar {
@@ -227,12 +226,12 @@
 			}
 
 			function buildGradePrompt(homeworkTitle, userInstruction) {
-				return `你是一位专业的老师。
+				return `你是一位专业的教师。
 作业题目：${homeworkTitle || ""}
-老师的要求：${userInstruction || "请对作业进行评分并提供具体建议。"}
+教师的要求：${userInstruction || "请对作业进行评分并提供具体建议。"}
 请分析图片中的内容，直接返回 JSON 格式，包含 score (0-100) 和 comment (点评)。
 点评需要简洁，控制在50字以内，不需要描述学生作业的内容，只需描述作业的不足之处。
-满足老师要求的且质量优秀的打100分，完全不满足老师要求的打0分（未提交对应照片、未完成等）。`;
+满足教师要求的且质量优秀的打100分，完全不满足教师要求的打0分（未提交对应照片、未完成等）。`;
 			}
 
 			function handleVisionModelError(msg) {
@@ -556,12 +555,12 @@
 				_visionAlerted = false;
 
 				// 优化：Prompt 仅保留文字要求，不再嵌入 Base64 数据
-				const textPrompt = `你是一位专业的老师。
+				const textPrompt = `你是一位专业的教师。
 作业题目：${currentHomeworkData.homework_title}
-老师的要求：${userInstruction || "请对作业进行评分并提供具体建议。"}
+教师的要求：${userInstruction || "请对作业进行评分并提供具体建议。"}
 请分析图片中的内容，直接返回 JSON 格式，包含 score (0-100) 和 comment (点评)。
 点评需要简洁，控制在50字以内，不需要描述学生作业的内容，只需描述作业的不足之处。
-满足老师要求的且质量优秀的打100分，完全不满足老师要求的打0分（未提交对应照片、未完成等）。`;
+满足教师要求的且质量优秀的打100分，完全不满足教师要求的打0分（未提交对应照片、未完成等）。`;
 
 				try {
 					const res = await fetch(`${API}?action=ai_grade`, {

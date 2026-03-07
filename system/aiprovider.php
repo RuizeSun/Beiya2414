@@ -15,7 +15,7 @@ class AIService
     }
 
     /**
-     * 获取指定老师可用的所有 AI 模型
+     * 获取指定教师可用的所有 AI 模型
      */
     public function getAvailableModels($teacherId)
     {

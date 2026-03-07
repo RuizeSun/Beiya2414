@@ -4,7 +4,6 @@
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 
-		<title>大屏作业管理</title>
 		<!-- 引入 Tailwind CSS -->
 		<script src="https://cdn.tailwindcss.com"></script>
 		<!-- 引入 Lucide Icons -->
@@ -247,7 +246,7 @@
 
 				<!-- 文件上传区域 -->
 				<div id="fileSection" class="hidden space-y-4">
-					<p class="text-sm text-gray-500 mb-4">请点击下方按钮选择图片文件。图片将在浏览器中进行<strong>首次压缩</strong>。</p>
+					<p class="text-sm text-gray-500 mb-4">请点击下方按钮选择图片文件。</p>
 
 					<div class="flex items-center justify-center w-full">
 						<label for="fileInput" class="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
@@ -292,8 +291,8 @@
 					<div class="relative inline-block w-full max-w-full">
 						<!-- 学生作业原图 -->
 						<img id="submissionImageView" class="w-full h-auto rounded-lg shadow-xl block" alt="提交的作业图片" />
-						<!-- 老师批改图层 (默认隐藏) -->
-						<img id="gradingImageView" class="absolute inset-0 w-full h-full object-contain pointer-events-none hidden" alt="老师批改" />
+						<!-- 教师批改图层 (默认隐藏) -->
+						<img id="gradingImageView" class="absolute inset-0 w-full h-full object-contain pointer-events-none hidden" alt="教师批改" />
 					</div>
 				</div>
 				<div id="viewModalLoading" class="text-center p-8 text-xl text-primary-dark hidden">
@@ -914,7 +913,7 @@
 						loadingEl.classList.add("hidden");
 						studentImgEl.classList.remove("hidden");
 
-						// 2. 如果已批改，加载老师批改图
+						// 2. 如果已批改，加载教师批改图
 						if (isGraded) {
 							const gradingImgUrl = `${API_URL}?action=view_submission&submission_id=${submissionId}&type=teacher`;
 							gradingImgEl.src = gradingImgUrl + "&t=" + Date.now();

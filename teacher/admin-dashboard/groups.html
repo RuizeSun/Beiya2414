@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 	<head>
 		<meta charset="UTF-8" />
@@ -17,7 +17,9 @@
 			}
 			.group-row-hover:hover {
 				background-color: #f7f7f7;
-				box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+				box-shadow:
+					0 4px 6px -1px rgba(0, 0, 0, 0.1),
+					0 2px 4px -2px rgba(0, 0, 0, 0.06);
 				transform: translateY(-1px);
 			}
 		</style>
@@ -88,7 +90,7 @@
 						<input type="hidden" id="leader-group-id" name="groupId" />
 
 						<div class="mb-6">
-							<label for="groupLeader" class="block text-sm font-medium text-gray-700">选择组长 (仅显示该组成员)</label>
+							<label for="groupLeader" class="block text-sm font-medium text-gray-700">选择组长</label>
 							<select id="groupLeader" name="groupLeader" required class="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-red-500 focus:border-red-500 transition duration-150">
 								<!-- 选项将由 JavaScript 填充 -->
 							</select>
@@ -218,7 +220,7 @@
 			                     </button>
 			                 </td>
 			             </tr>
-			         `
+			         `,
 					)
 					.join("");
 			}

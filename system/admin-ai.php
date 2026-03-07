@@ -35,7 +35,7 @@ try {
                 ORDER BY m.Id DESC
             ")->fetchAll();
 
-            // 获取所有老师 (用于下拉选单)
+            // 获取所有教师 (用于下拉选单)
             $teachers = $db->query("SELECT Id, firstname, lastname FROM teachers ORDER BY lastname ASC")->fetchAll();
 
             // 获取所有配额设定
