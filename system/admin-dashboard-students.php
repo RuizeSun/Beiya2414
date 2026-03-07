@@ -98,7 +98,7 @@ try {
             $score = $_POST['score'] ?? null;
 
             if (!$studentId) {
-                $response['message'] = '缺少学生 ID。';
+                $response['message'] = '缺少学号。';
                 break;
             }
 
@@ -147,7 +147,7 @@ try {
             $studentId = $_POST['Id'] ?? null;
 
             if (!$studentId) {
-                $response['message'] = '缺少学生 ID。';
+                $response['message'] = '缺少学号。';
                 break;
             }
 
@@ -172,7 +172,7 @@ try {
             $groupId = ($groupId === 'null' || $groupId === '') ? null : (int)$groupId;
 
             if (!$studentId) {
-                $response['message'] = '缺少学生 ID。';
+                $response['message'] = '缺少学号。';
                 break;
             }
 

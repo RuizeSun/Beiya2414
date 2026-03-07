@@ -140,7 +140,7 @@ function handleUpdateScore(array $input)
 
     if (!$studentId || $reasonId === null) {
         http_response_code(400);
-        echo json_encode(["status" => "error", "message" => "缺少学生ID或变动量"]);
+        echo json_encode(["status" => "error", "message" => "缺少学号或变动量"]);
         exit();
     }
 

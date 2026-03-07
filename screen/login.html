@@ -4,7 +4,7 @@
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 
-		<title>班级大屏登入</title>
+		<title>班级大屏登录</title>
 		<!-- 引入 Tailwind CSS -->
 		<script src="https://cdn.tailwindcss.com"></script>
 		<style>
@@ -22,13 +22,13 @@
 
 			<form id="screenLoginForm" class="space-y-6">
 				<div>
-					<label for="screenId" class="block text-sm font-medium text-gray-700 mb-2">大屏 ID (Screen ID)</label>
+					<label for="screenId" class="block text-sm font-medium text-gray-700 mb-2">大屏 ID</label>
 					<!-- 由于 Id 是整数，使用 type="number" 进行优化 -->
 					<input type="number" id="screenId" name="screenId" required min="1" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" placeholder="请输入大屏 ID" />
 				</div>
 
 				<div>
-					<label for="password" class="block text-sm font-medium text-gray-700 mb-2">密码 (Password)</label>
+					<label for="password" class="block text-sm font-medium text-gray-700 mb-2">密码</label>
 					<input type="password" id="password" name="password" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150" placeholder="请输入密码" />
 				</div>
 

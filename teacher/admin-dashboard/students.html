@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 	<head>
 		<meta charset="UTF-8" />
@@ -37,7 +37,7 @@
 							<tr>
 								<th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">ID</th>
 								<!-- 确保显示“姓+名” -->
-								<th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">全名 (姓+名)</th>
+								<th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">姓名</th>
 								<th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">量化评分</th>
 								<th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">所属小组</th>
 								<th class="px-6 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">操作</th>
@@ -232,7 +232,7 @@
 						(student) => `
                 <tr data-id="${student.Id}" class="hover:bg-gray-50 transition duration-150 border-t border-gray-100">
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${student.Id}</td>
-                    <!-- 使用后端已经合并好的 fullName (姓+名) -->
+                    <!-- 使用后端已经合并好的 fullName -->
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${student.fullName}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-semibold">${student.score || 0}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-purple-600">${student.groupName || "未分组"}</td>
@@ -251,7 +251,7 @@
                         </button>
                     </td>
                 </tr>
-            `
+            `,
 					)
 					.join("");
 			}

@@ -112,7 +112,7 @@ if ($action === 'list') {
 
 /**
  * 动作 1.5:/**
- * 动作 1.5: 获取可选择的作业清单（本人或同科目老师布置）
+ * 动作 1.5: 获取可选择的作业清单（本人或同科目教师布置）
  * 供前端“批量批改范围筛选”使用
  */
 elseif ($action === 'homework_list') {
@@ -166,7 +166,7 @@ elseif ($action === 'homework_list') {
 
 /**
  * 动作 1.6: 批量批改范围筛选（选择某作业下的所有提交）
- * 规则：该作业必须是老师本人布置或同科目老师布置的（管理员可查看全部）
+ * 规则：该作业必须是教师本人布置或同科目教师布置的（管理员可查看全部）
  * 返回：符合筛选条件的提交列表（含 submission_id 与 student_image Base64）
  */
 elseif ($action === 'batch_scope') {
@@ -182,7 +182,7 @@ elseif ($action === 'batch_scope') {
         $currentSubject = $teacher['subject'] ?? '';
         $isAdmin = (int)($teacher['isAdmin'] ?? 0) === 1;
 
-        // 1) 权限校验：作业必须是本人布置或同科目老师布置（管理员跳过）
+        // 1) 权限校验：作业必须是本人布置或同科目教师布置（管理员跳过）
         if (!$isAdmin) {
             if (empty($currentSubject)) {
                 echo json_encode(['status' => 'error', 'message' => '您的帐号未设置科目，无法批量批改']);
@@ -203,7 +203,7 @@ elseif ($action === 'batch_scope') {
             $allowed = $stmt->fetchColumn();
 
             if (!$allowed) {
-                echo json_encode(['status' => 'error', 'message' => '无权批改：该作业不是您本人或同科目老师布置']);
+                echo json_encode(['status' => 'error', 'message' => '无权批改：该作业不是您本人或同科目教师布置']);
                 exit;
             }
         }

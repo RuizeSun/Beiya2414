@@ -15,7 +15,7 @@ class AIService
     }
 
     /**
-     * 获取指定老师可用的所有 AI 模型
+     * 获取指定教师可用的所有 AI 模型
      */
     public function getAvailableModels($teacherId)
     {
@@ -107,7 +107,8 @@ class AIService
             'messages' => [
                 ['role' => 'user', 'content' => $messageContent]
             ],
-            'temperature' => 0.1
+            'temperature' => 0.2,
+            'max_tokens' => 2000,
         ];
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
