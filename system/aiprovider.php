@@ -107,7 +107,8 @@ class AIService
             'messages' => [
                 ['role' => 'user', 'content' => $messageContent]
             ],
-            'temperature' => 0.1
+            'temperature' => 0.2,
+            'max_tokens' => 2000,
         ];
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
