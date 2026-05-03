@@ -42,7 +42,7 @@ CREATE TABLE `groups` (
   `groupName` varchar(255) DEFAULT NULL COMMENT '组名',
   `groupLeader` varchar(255) DEFAULT NULL COMMENT '组长Id',
   PRIMARY KEY (`Id`)
-) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8 COMMENT='小组信息表';
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='小组信息表';
 
 #
 # Structure for table "homework"
@@ -59,7 +59,7 @@ CREATE TABLE `homework` (
   `description` varchar(255) DEFAULT NULL COMMENT '作业描述',
   `title` varchar(255) DEFAULT NULL COMMENT '作业标题',
   PRIMARY KEY (`Id`)
-) ENGINE=MyISAM AUTO_INCREMENT=5 DEFAULT CHARSET=utf8 COMMENT='家庭作业';
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='家庭作业';
 
 #
 # Structure for table "homeworkcheck"
@@ -75,7 +75,7 @@ CREATE TABLE `homeworkcheck` (
   `check_image` longblob COMMENT '如果有手写批改图，可以存这里',
   `createtime` int(11) DEFAULT NULL COMMENT '批改时间',
   PRIMARY KEY (`Id`)
-) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8 COMMENT='老师批改记录';
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='老师批改记录';
 
 #
 # Structure for table "homeworksubmission"
@@ -90,7 +90,7 @@ CREATE TABLE `homeworksubmission` (
   `time` int(11) DEFAULT NULL COMMENT '第一次提交时间',
   `updatetime` int(11) DEFAULT NULL COMMENT '更新时间（如果没有更新过就是初次提交时间）',
   PRIMARY KEY (`Id`)
-) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=utf8 COMMENT='学生作业提交';
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='学生作业提交';
 
 #
 # Structure for table "scorechangelog"
@@ -105,7 +105,7 @@ CREATE TABLE `scorechangelog` (
   `timestamp` int(11) DEFAULT NULL COMMENT '操作时间',
   `studentid` varchar(255) DEFAULT NULL COMMENT '学生id',
   PRIMARY KEY (`Id`)
-) ENGINE=MyISAM AUTO_INCREMENT=24 DEFAULT CHARSET=utf8 COMMENT='量化评分改动记录';
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='量化评分改动记录';
 
 #
 # Structure for table "scorechangetype"
@@ -118,7 +118,7 @@ CREATE TABLE `scorechangetype` (
   `change` double DEFAULT NULL COMMENT '量化评分改动量',
   `timestamp` int(11) DEFAULT NULL COMMENT '时间戳',
   PRIMARY KEY (`Id`)
-) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8 COMMENT='量化评分加分/减分项';
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='量化评分加分/减分项';
 
 #
 # Structure for table "screens"
@@ -131,7 +131,7 @@ CREATE TABLE `screens` (
   `token` varchar(255) DEFAULT NULL COMMENT '密钥',
   `tokenexpire` int(11) DEFAULT NULL COMMENT '密钥过期时间',
   PRIMARY KEY (`Id`)
-) ENGINE=MyISAM AUTO_INCREMENT=2 DEFAULT CHARSET=utf8 COMMENT='班级大屏信息';
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='班级大屏信息';
 
 #
 # Structure for table "students"
@@ -148,7 +148,7 @@ CREATE TABLE `students` (
   `score` double DEFAULT NULL COMMENT '量化评分',
   `password` varchar(255) DEFAULT NULL COMMENT '密码',
   PRIMARY KEY (`Id`)
-) ENGINE=MyISAM AUTO_INCREMENT=50 DEFAULT CHARSET=utf8 COMMENT='学生信息表';
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='学生信息表';
 
 #
 # Structure for table "teacher_model_quotas"
@@ -182,4 +182,4 @@ CREATE TABLE `teachers` (
   `token` varchar(255) DEFAULT NULL COMMENT '私钥',
   `tokenExpire` int(11) DEFAULT NULL COMMENT '私钥过期时间',
   PRIMARY KEY (`Id`)
-) ENGINE=MyISAM AUTO_INCREMENT=3 DEFAULT CHARSET=utf8 COMMENT='教师及管理员信息表';
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COMMENT='教师及管理员信息表';

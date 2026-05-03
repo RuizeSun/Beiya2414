@@ -6,6 +6,8 @@
 
 		<!-- 载入 Tailwind CSS -->
 		<script src="https://cdn.tailwindcss.com"></script>
+		<!-- SheetJS 用于在前端将 XLSX 转换为 CSV -->
+		<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 		<style>
 			/* 隐藏密码输入的眼睛图标 (标准化密码输入框) */
 			input[type="password"]::-ms-reveal,
@@ -27,6 +29,8 @@
 			<div class="mb-6 flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
 				<button onclick="openAddModal()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-xl shadow-md hover:shadow-lg transition duration-150 ease-in-out transform hover:scale-[1.02]">新增学生</button>
 				<button onclick="fetchStudents()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-xl shadow-md hover:shadow-lg transition duration-150 ease-in-out transform hover:scale-[1.02]">刷新列表</button>
+				<!-- 导入学生按钮 -->
+				<button onclick="openImportModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-xl shadow-md hover:shadow-lg transition duration-150 ease-in-out transform hover:scale-[1.02]">导入学生</button>
 			</div>
 
 			<!-- 学生列表表格 -->
@@ -36,7 +40,7 @@
 						<thead class="bg-gray-100">
 							<tr>
 								<th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">ID</th>
-								<!-- 确保显示“姓+名” -->
+								<!-- 确保显示"姓+名" -->
 								<th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">姓名</th>
 								<th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">量化评分</th>
 								<th class="px-6 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">所属小组</th>
@@ -95,6 +99,44 @@
 			</div>
 		</div>
 
+		<!-- 导入学生的弹窗 -->
+		<div id="import-modal" class="modal-overlay fixed inset-0 bg-gray-900 bg-opacity-70 hidden flex items-center justify-center p-4 transition-opacity duration-300" onclick="closeImportModal(event)">
+			<div class="bg-white rounded-2xl shadow-3xl w-full max-w-md transform transition-all duration-300 scale-95" onclick="event.stopPropagation()">
+				<div class="p-6">
+					<h2 class="text-2xl font-bold text-gray-800 mb-6 border-b pb-3">导入学生 (CSV/Excel)</h2>
+					<form id="import-form" onsubmit="handleImportSubmit(event)">
+						<div class="mb-4">
+							<label class="block text-sm font-medium text-gray-700">选择文件</label>
+							<input type="file" id="import-file" accept=".csv, .xlsx" required class="mt-1 block w-full" />
+						</div>
+						<!-- 列映射区域，文件读取后动态生成 -->
+						<div id="column-mapping" class="hidden space-y-3">
+							<div>
+								<label class="block text-sm font-medium text-gray-700">学号列</label>
+								<select id="map-id" class="mt-1 block w-full"></select>
+							</div>
+							<div>
+								<label class="block text-sm font-medium text-gray-700">姓列（可选）</label>
+								<select id="map-lastname" class="mt-1 block w-full"></select>
+							</div>
+							<div>
+								<label class="block text-sm font-medium text-gray-700">名列（可选）</label>
+								<select id="map-firstname" class="mt-1 block w-full"></select>
+							</div>
+							<div>
+								<label class="block text-sm font-medium text-gray-700">全名列（若姓名在同一列）</label>
+								<select id="map-fullname" class="mt-1 block w-full"></select>
+							</div>
+						</div>
+						<div class="flex justify-end space-x-3 mt-6">
+							<button type="button" onclick="closeImportModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-xl transition duration-150 shadow-sm">取消</button>
+							<button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-xl shadow-lg transition duration-150 transform hover:scale-[1.02]">上传</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+
 		<!-- 小组分配的弹窗 -->
 		<div id="group-modal" class="modal-overlay fixed inset-0 bg-gray-900 bg-opacity-70 hidden flex items-center justify-center p-4 transition-opacity duration-300" onclick="closeGroupModal(event)">
 			<div class="bg-white rounded-2xl shadow-3xl w-full max-w-sm transform transition-all duration-300 scale-95" onclick="event.stopPropagation()">
@@ -122,6 +164,160 @@
 		<script>
 			// API 的基础 URL，指向后端 PHP 文件
 			const API_URL = "/system/admin-dashboard-students.php";
+
+			// 导入相关函数
+			function openImportModal() {
+				document.getElementById("import-modal").classList.remove("hidden");
+			}
+			function closeImportModal(event = null) {
+				if (event && event.target !== document.getElementById("import-modal")) return;
+				document.getElementById("import-modal").classList.add("hidden");
+			}
+
+			// 处理导入提交，支持 CSV 直接上传或 XLSX 前端转 CSV
+			async function handleImportSubmit(event) {
+				event.preventDefault();
+				const fileInput = document.getElementById("import-file");
+				if (!fileInput.files.length) return;
+				const file = fileInput.files[0];
+				const formData = new FormData();
+
+				// 若上传的是 XLSX，使用 SheetJS 将其转为 CSV 再上传
+				if (file.name.toLowerCase().endsWith(".xlsx")) {
+					const reader = new FileReader();
+					reader.onload = async function (e) {
+						const data = e.target.result; // ArrayBuffer
+						const workbook = XLSX.read(data, { type: "array" });
+						const firstSheet = workbook.SheetNames[0];
+						const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[firstSheet]);
+						const csvBlob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+						formData.append("file", csvBlob, "import.csv");
+						// 添加列映射信息
+						formData.append("idCol", document.getElementById("map-id").value);
+						formData.append("lastNameCol", document.getElementById("map-lastname").value);
+						formData.append("firstNameCol", document.getElementById("map-firstname").value);
+						formData.append("fullNameCol", document.getElementById("map-fullname").value);
+						const resp = await apiFetch("import_students", { method: "POST", body: formData });
+						if (resp && resp.success) {
+							handleImportSuccess(resp);
+						}
+					};
+					reader.readAsArrayBuffer(file);
+					return; // 等待异步回调处理
+				}
+
+				// CSV 直接上传
+				formData.append("file", file);
+				formData.append("idCol", document.getElementById("map-id").value);
+				formData.append("lastNameCol", document.getElementById("map-lastname").value);
+				formData.append("firstNameCol", document.getElementById("map-firstname").value);
+				formData.append("fullNameCol", document.getElementById("map-fullname").value);
+				const data = await apiFetch("import_students", {
+					method: "POST",
+					body: formData,
+				});
+				if (data && data.success) {
+					handleImportSuccess(data);
+				}
+			}
+
+			// 处理导入成功的通用逻辑
+			function handleImportSuccess(data) {
+				let msg = data.message;
+				if (data.passwords && data.passwords.length) {
+					msg += "\n生成密码已下载。";
+				}
+				showMessage("success", msg);
+				// 若返回密码 CSV 内容，触发下载
+				if (data.passwordCsv) {
+					const blob = new Blob([data.passwordCsv], { type: "text/csv;charset=utf-8;" });
+					const url = URL.createObjectURL(blob);
+					const a = document.createElement("a");
+					a.href = url;
+					a.download = "import_passwords.csv";
+					a.click();
+					URL.revokeObjectURL(url);
+				}
+				closeImportModal();
+				fetchStudents();
+			}
+
+			// 读取文件头部并生成列映射下拉框
+			document.getElementById("import-file").addEventListener("change", function () {
+				const file = this.files[0];
+				if (!file) return;
+				const ext = file.name.split(".").pop().toLowerCase();
+				const mapId = document.getElementById("map-id");
+				const mapLast = document.getElementById("map-lastname");
+				const mapFirst = document.getElementById("map-firstname");
+				const mapFull = document.getElementById("map-fullname");
+				const resetSelects = () => {
+					[mapId, mapLast, mapFirst, mapFull].forEach((sel) => (sel.innerHTML = ""));
+				};
+				const addEmptyOption = (sel) => {
+					const o = document.createElement("option");
+					o.value = "-1";
+					o.textContent = "(不使用)";
+					sel.prepend(o);
+				};
+				if (ext === "xlsx") {
+					// 使用 SheetJS 读取首行标题
+					const reader = new FileReader();
+					reader.onload = function (e) {
+						const data = e.target.result; // ArrayBuffer
+						const workbook = XLSX.read(data, { type: "array" });
+						const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+						const range = XLSX.utils.decode_range(firstSheet["!ref"]);
+						const header = [];
+						for (let C = range.s.c; C <= range.e.c; ++C) {
+							const cellAddress = { c: C, r: range.s.r };
+							const cellRef = XLSX.utils.encode_cell(cellAddress);
+							const cell = firstSheet[cellRef];
+							header.push(cell ? String(cell.v).trim() : `列${C + 1}`);
+						}
+						resetSelects();
+						header.forEach((c, i) => {
+							const opt = document.createElement("option");
+							opt.value = i;
+							opt.textContent = c || `列${i + 1}`;
+							[mapId, mapLast, mapFirst, mapFull].forEach((sel) => sel.appendChild(opt.cloneNode(true)));
+						});
+						[mapLast, mapFirst, mapFull].forEach(addEmptyOption);
+						document.getElementById("column-mapping").classList.remove("hidden");
+					};
+					reader.readAsArrayBuffer(file);
+				} else {
+					// CSV 读取并检测编码
+					const reader = new FileReader();
+					reader.onload = function (e) {
+						const uint8 = new Uint8Array(e.target.result);
+						let encoding = "utf-8";
+						if (uint8[0] === 0xef && uint8[1] === 0xbb && uint8[2] === 0xbf) {
+							encoding = "utf-8";
+						} else {
+							try {
+								const decoder = new TextDecoder("gbk");
+								decoder.decode(uint8);
+								if (uint8.some((b) => b > 0x7f)) encoding = "gbk";
+							} catch (_) {}
+						}
+						const decoder = new TextDecoder(encoding);
+						const text = decoder.decode(uint8);
+						const firstLine = text.split(/\r?\n/)[0];
+						const cols = firstLine.split(/[,;\t]/);
+						resetSelects();
+						cols.forEach((c, i) => {
+							const opt = document.createElement("option");
+							opt.value = i;
+							opt.textContent = c.trim() || `列${i + 1}`;
+							[mapId, mapLast, mapFirst, mapFull].forEach((sel) => sel.appendChild(opt.cloneNode(true)));
+						});
+						[mapLast, mapFirst, mapFull].forEach(addEmptyOption);
+						document.getElementById("column-mapping").classList.remove("hidden");
+					};
+					reader.readAsArrayBuffer(file);
+				}
+			});
 
 			const studentsTableBody = document.getElementById("students-table-body");
 			const messageBox = document.getElementById("message-box");
@@ -207,7 +403,7 @@
 
 			// 获取学生数据并渲染表格
 			async function fetchStudents() {
-				studentsTableBody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-400 text-lg">加载中...</td></tr>';
+				studentsTableBody.innerHTML = 'tr><td colspan="5" class="text-center py-8 text-gray-400 text-lg">加载中...</td></tr>';
 
 				// 在这里调用 apiFetch 并传递 action
 				const data = await apiFetch("get_students");
@@ -357,7 +553,7 @@
 				const studentName = studentRow ? studentRow.querySelector("td:nth-child(2)").textContent : `ID ${id}`;
 
 				// 由于不能使用 window.confirm()，我们将使用 window.prompt 模拟 confirm
-				const promptResult = window.prompt(`确认删除学生 ${studentName} (ID: ${id}) 吗？\n请输入“删除”以确认此操作。`);
+				const promptResult = window.prompt(`确认删除学生 ${studentName} (ID: ${id}) 吗？\n请输入"删除"以确认此操作。`);
 
 				if (promptResult !== "删除") {
 					showMessage("error", "删除操作已取消。");
